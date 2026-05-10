@@ -1,26 +1,84 @@
+/* ============================================
+   ALL @import statements MUST be at the TOP
+   ============================================ */
+
+@import url("https://fonts.googleapis.com/css2?family=Noto+Sans+Ethiopic:wght@400;500;600;700&display=swap");
+@import "leaflet/dist/leaflet.css";
 @import "tailwindcss";
 
+/* ============================================
+   CSS Variables & Root Definitions
+   ============================================ */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --font-ethiopic:
+    "Noto Sans Ethiopic", "Nyala", "Abyssinica SIL", "Ethiopia Jiret",
+    "Visual Geez Unicode", "Code2000", sans-serif;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+/* ============================================
+   Base Styles
+   ============================================ */
+
+html {
+  scroll-behavior: smooth;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/* ============================================
+   Ethiopian Font Family Configuration
+   ============================================ */
+
+/* Apply Ethiopian font to all Amharic text inputs and elements */
+input[lang="am"],
+textarea[lang="am"],
+[data-language="am"],
+.amharic-text,
+.font-ethiopic {
+  font-family: var(--font-ethiopic);
+  font-weight: normal;
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+/* Ensure proper rendering on Windows */
+@supports (font-family: "Nyala") {
+  .font-ethiopic {
+    font-family: "Nyala", var(--font-ethiopic);
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* Ensure proper rendering on Linux */
+@supports (font-family: "Abyssinica SIL") {
+  .font-ethiopic {
+    font-family: "Abyssinica SIL", var(--font-ethiopic);
+  }
+}
+
+/* Improve input cursor position for Amharic text */
+input.font-ethiopic::placeholder,
+textarea.font-ethiopic::placeholder {
+  font-family:
+    system-ui,
+    -apple-system,
+    sans-serif;
+  font-size: 0.875rem;
+}
+
+/* ============================================
+   Animations
+   ============================================ */
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.5s ease-out;
 }
