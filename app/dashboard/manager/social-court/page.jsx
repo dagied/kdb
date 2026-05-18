@@ -74,6 +74,38 @@ function SocialCourtPage() {
   const [submitting, setSubmitting] = useState(false);
   const [caseTypes, setCaseTypes] = useState([]);
 
+  // Open modals
+  const openHearingModal = (caseItem) => {
+    setSelectedCase(caseItem);
+    setHearingData({
+      hearing_date: '',
+      location: 'Kebele Social Court',
+      hearing_type: 'REGULAR',
+      notes: ''
+    });
+    setShowHearingModal(true);
+  };
+
+  const openJudgmentModal = (caseItem) => {
+    setSelectedCase(caseItem);
+    setJudgmentData({
+      judgment_text: '',
+      judgment_amount: '',
+      appealed: false,
+      appeal_deadline: ''
+    });
+    setShowJudgmentModal(true);
+  };
+
+  const openEditModal = (caseItem) => {
+    setSelectedCase(caseItem);
+    setEditData({
+      status: caseItem.status,
+      description: caseItem.description || ''
+    });
+    setShowEditModal(true);
+  };
+
   // Fetch all data on mount
   useEffect(() => {
     fetchCases();
@@ -357,7 +389,9 @@ function SocialCourtPage() {
           notes: ''
         });
         fetchCases();
-        viewCaseDetails(selectedCase.case_id);
+        if (selectedCase) {
+          viewCaseDetails(selectedCase.case_id);
+        }
       } else {
         alert(data.error || (locale === 'am' ? 'ችሎት ቀጠሮ ማስያዝ አልተቻለም' : 
                locale === 'om' ? 'Murtiin qindaa\'uu hin danda\'ne' : 
@@ -401,7 +435,9 @@ function SocialCourtPage() {
           appeal_deadline: ''
         });
         fetchCases();
-        viewCaseDetails(selectedCase.case_id);
+        if (selectedCase) {
+          viewCaseDetails(selectedCase.case_id);
+        }
       } else {
         alert(data.error || (locale === 'am' ? 'ውሳኔ መስጠት አልተቻለም' : 
                locale === 'om' ? 'Murtiin kennamee hin danda\'ne' : 
@@ -679,7 +715,7 @@ function SocialCourtPage() {
                         >
                           <FaEye size={18} />
                         </button>
-                      </td>
+                       </td>
                     </tr>
                   ))}
                 </tbody>
@@ -708,7 +744,7 @@ function SocialCourtPage() {
                 {/* Plaintiff Search */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    {locale === 'am' ? 'ከሳሽ ይፈልጉ' : locale === 'om' ? 'Himataa Barbaadi' : 'Search Plaintiff'}
+                    {locale === 'am' ? 'ከሳሽ ይፈልጉ' : locale === 'om' ? 'Himataa Barbaadi' : 'Search Plaintiff (Optional)'}
                   </label>
                   <div className="relative">
                     <input
@@ -746,7 +782,7 @@ function SocialCourtPage() {
                 {/* Defendant Search */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    {locale === 'am' ? 'ተከሳሽ ይፈልጉ' : locale === 'om' ? 'Himatamaa Barbaadi' : 'Search Defendant'}
+                    {locale === 'am' ? 'ተከሳሽ ይፈልጉ' : locale === 'om' ? 'Himatamaa Barbaadi' : 'Search Defendant (Optional)'}
                   </label>
                   <div className="relative">
                     <input
@@ -967,6 +1003,459 @@ function SocialCourtPage() {
                   {submitting ? <FaSpinner className="animate-spin" /> : <FaGavel />}
                   {submitting ? (locale === 'am' ? 'በማስገባት ላይ...' : locale === 'om' ? 'Galmeessaa...' : 'Filing...') : 
                   (locale === 'am' ? 'ጉዳይ አቅርብ' : locale === 'om' ? 'Dhimicha Galmeessi' : 'File Case')}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ================= CASE DETAILS MODAL ================= */}
+      {showDetailsModal && selectedCase && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center">
+              <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                <FaEye className="text-blue-600" /> 
+                {locale === 'am' ? 'የጉዳይ ዝርዝሮች' : locale === 'om' ? 'Gadifageenya Dhimichaa' : 'Case Details'}
+              </h2>
+              <button onClick={() => setShowDetailsModal(false)} className="text-gray-400 hover:text-gray-600">
+                <FaTimesCircle size={24} />
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-4">
+              {/* Case Header */}
+              <div className="bg-gray-50 rounded-lg p-4">
+                <div className="flex justify-between items-start flex-wrap gap-2">
+                  <div>
+                    <p className="text-xs text-gray-500">
+                      {locale === 'am' ? 'የጉዳይ ቁጥር' : locale === 'om' ? 'Lakkoofsa Dhimichaa' : 'Case Number'}
+                    </p>
+                    <p className="text-lg font-bold text-gray-800 font-mono">{selectedCase.case_number}</p>
+                  </div>
+                  <div>
+                    {getStatusBadge(selectedCase.status)}
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                  <div>
+                    <p className="text-xs text-gray-500">
+                      {locale === 'am' ? 'የተመደበ ቀን' : locale === 'om' ? 'Guyyaa Ramadame' : 'Filed Date'}
+                    </p>
+                    <p className="text-sm">{new Date(selectedCase.filing_date).toLocaleDateString()}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">
+                      {locale === 'am' ? 'የጉዳይ አይነት' : locale === 'om' ? 'Gosa Dhimichaa' : 'Case Type'}
+                    </p>
+                    <p className="text-sm">{getCaseTypeLabel(selectedCase.case_type)}</p>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Parties */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="bg-green-50 rounded-lg p-4 border-l-4 border-green-500">
+                  <p className="text-xs text-green-600 uppercase font-semibold">
+                    {locale === 'am' ? 'ከሳሽ' : locale === 'om' ? 'Himataa' : 'PLAINTIFF'}
+                  </p>
+                  <p className="text-lg font-medium text-gray-800">{selectedCase.plaintiff_name || selectedCase.plaintiff_full_name || '—'}</p>
+                  {selectedCase.plaintiff_id && (
+                    <p className="text-xs text-gray-500 mt-1">ID: {selectedCase.plaintiff_id}</p>
+                  )}
+                </div>
+                <div className="bg-red-50 rounded-lg p-4 border-l-4 border-red-500">
+                  <p className="text-xs text-red-600 uppercase font-semibold">
+                    {locale === 'am' ? 'ተከሳሽ' : locale === 'om' ? 'Himatamaa' : 'DEFENDANT'}
+                  </p>
+                  <p className="text-lg font-medium text-gray-800">{selectedCase.defendant_name || selectedCase.defendant_full_name || '—'}</p>
+                  {selectedCase.defendant_id && (
+                    <p className="text-xs text-gray-500 mt-1">ID: {selectedCase.defendant_id}</p>
+                  )}
+                </div>
+              </div>
+              
+              {/* Assigned Judges */}
+              <div className="bg-blue-50 rounded-lg p-4">
+                <p className="text-xs text-blue-600 uppercase font-semibold mb-2">
+                  {locale === 'am' ? 'የተመደቡ ዳኞች' : locale === 'om' ? 'Abbootii Murtii Ramadamani' : 'Assigned Judges'}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {selectedCase.assigned_judges && selectedCase.assigned_judges.length > 0 ? (
+                    selectedCase.assigned_judges.map((judge, idx) => (
+                      <div key={idx} className="bg-white px-3 py-1 rounded-full text-sm flex items-center gap-2 shadow-sm">
+                        <FaUserCheck className="text-blue-600 text-xs" />
+                        {judge.name}
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-sm text-gray-500">—</p>
+                  )}
+                </div>
+              </div>
+              
+              {/* Claim Amount */}
+              {selectedCase.claim_amount && (
+                <div className="bg-yellow-50 rounded-lg p-4">
+                  <p className="text-xs text-yellow-600 uppercase font-semibold">
+                    {locale === 'am' ? 'የይገባኛል ጥያቄ መጠን' : locale === 'om' ? 'Gatii Iyyannoo' : 'Claim Amount'}
+                  </p>
+                  <p className="text-lg font-bold text-gray-800">Br {parseFloat(selectedCase.claim_amount).toLocaleString()}</p>
+                </div>
+              )}
+              
+              {/* Description */}
+              <div className="bg-gray-50 rounded-lg p-4">
+                <p className="text-xs text-gray-500 uppercase font-semibold mb-2">
+                  {locale === 'am' ? 'መግለጫ' : locale === 'om' ? 'Ibsa' : 'Description'}
+                </p>
+                <p className="text-gray-700 whitespace-pre-wrap">{selectedCase.description || '—'}</p>
+              </div>
+              
+              {/* Hearings Section */}
+              <div>
+                <div className="flex justify-between items-center mb-3">
+                  <h3 className="font-semibold text-gray-800 flex items-center gap-2">
+                    <FaCalendarAlt className="text-green-600" />
+                    {locale === 'am' ? 'ችሎቶች' : locale === 'om' ? 'Murtiiwwan' : 'Hearings'}
+                  </h3>
+                  {selectedCase.status !== 'RESOLVED' && selectedCase.status !== 'CLOSED' && (
+                    <button
+                      onClick={() => openHearingModal(selectedCase)}
+                      className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white text-sm rounded-lg transition flex items-center gap-1"
+                    >
+                      <FaPlus size={12} /> 
+                      {locale === 'am' ? 'ችሎት ያዝ' : locale === 'om' ? 'Murtii Qindeessi' : 'Schedule Hearing'}
+                    </button>
+                  )}
+                </div>
+                {selectedCase.hearings && selectedCase.hearings.length > 0 ? (
+                  <div className="space-y-2">
+                    {selectedCase.hearings.map((hearing, idx) => (
+                      <div key={idx} className="bg-gray-50 rounded-lg p-3">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <p className="font-medium text-gray-800">
+                              {new Date(hearing.hearing_date).toLocaleDateString()} 
+                              {hearing.hearing_type === 'EMERGENCY' && ' 🚨'}
+                            </p>
+                            <p className="text-sm text-gray-600">{hearing.location}</p>
+                          </div>
+                          {hearing.outcome && (
+                            <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">
+                              {hearing.outcome}
+                            </span>
+                          )}
+                        </div>
+                        {hearing.notes && <p className="text-xs text-gray-500 mt-1">{hearing.notes}</p>}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-500 text-center py-4">
+                    {locale === 'am' ? 'ምንም ችሎቶች አልተያዙም' : locale === 'om' ? 'Murtiin kamillee hin qindaa\'anne' : 'No hearings scheduled'}
+                  </p>
+                )}
+              </div>
+              
+              {/* Judgment Section */}
+              <div>
+                <div className="flex justify-between items-center mb-3">
+                  <h3 className="font-semibold text-gray-800 flex items-center gap-2">
+                    <FaGavel className="text-purple-600" />
+                    {locale === 'am' ? 'ውሳኔ' : locale === 'om' ? 'Murtii' : 'Judgment'}
+                  </h3>
+                  {!selectedCase.judgment && selectedCase.status !== 'RESOLVED' && selectedCase.status !== 'CLOSED' && (
+                    <button
+                      onClick={() => openJudgmentModal(selectedCase)}
+                      className="px-3 py-1 bg-purple-600 hover:bg-purple-700 text-white text-sm rounded-lg transition flex items-center gap-1"
+                    >
+                      <FaGavel size={12} /> 
+                      {locale === 'am' ? 'ውሳኔ ስጥ' : locale === 'om' ? 'Murtii Kenni' : 'Issue Judgment'}
+                    </button>
+                  )}
+                </div>
+                {selectedCase.judgment ? (
+                  <div className="bg-purple-50 rounded-lg p-4 border-l-4 border-purple-500">
+                    <p className="text-gray-700 whitespace-pre-wrap">{selectedCase.judgment.judgment_text}</p>
+                    {selectedCase.judgment.judgment_amount && (
+                      <p className="text-sm font-semibold text-gray-800 mt-2">
+                        {locale === 'am' ? 'የውሳኔ መጠን:' : locale === 'om' ? 'Gatii Murtii:' : 'Judgment Amount:'} Br {parseFloat(selectedCase.judgment.judgment_amount).toLocaleString()}
+                      </p>
+                    )}
+                    {selectedCase.judgment.appealed && (
+                      <p className="text-xs text-orange-600 mt-2">
+                        {locale === 'am' ? 'ይግባኝ ቀርቧል' : locale === 'om' ? 'Murtii ol-eesse' : 'Appealed'}
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-500 text-center py-4">
+                    {locale === 'am' ? 'ውሳኔ አልተሰጠም' : locale === 'om' ? 'Murtii hin kennamne' : 'No judgment issued yet'}
+                  </p>
+                )}
+              </div>
+              
+              {/* Action Buttons */}
+              <div className="flex gap-3 pt-4 border-t border-gray-200">
+                <button
+                  onClick={() => openEditModal(selectedCase)}
+                  className="flex-1 px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg transition flex items-center justify-center gap-2"
+                >
+                  <FaEdit /> {locale === 'am' ? 'አርትዕ' : locale === 'om' ? 'Fooyyeessi' : 'Edit'}
+                </button>
+                <button
+                  onClick={() => setShowDetailsModal(false)}
+                  className="flex-1 px-4 py-2 bg-gray-300 hover:bg-gray-400 text-gray-800 rounded-lg transition"
+                >
+                  {locale === 'am' ? 'ዝጋ' : locale === 'om' ? 'Cufi' : 'Close'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= HEARING MODAL ================= */}
+      {showHearingModal && selectedCase && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full">
+            <div className="border-b border-gray-200 px-6 py-4 flex justify-between items-center">
+              <h2 className="text-xl font-bold text-gray-800">
+                {locale === 'am' ? 'ችሎት ያዝ' : locale === 'om' ? 'Murtii Qindeessi' : 'Schedule Hearing'}
+              </h2>
+              <button onClick={() => setShowHearingModal(false)} className="text-gray-400 hover:text-gray-600">
+                <FaTimesCircle size={24} />
+              </button>
+            </div>
+            
+            <form onSubmit={scheduleHearing} className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  {locale === 'am' ? 'ቀን እና ሰዓት' : locale === 'om' ? 'Guyyaa fi Yeroo' : 'Date & Time'} *
+                </label>
+                <input
+                  type="datetime-local"
+                  value={hearingData.hearing_date}
+                  onChange={(e) => setHearingData({...hearingData, hearing_date: e.target.value})}
+                  required
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  {locale === 'am' ? 'ቦታ' : locale === 'om' ? 'Iddoo' : 'Location'}
+                </label>
+                <input
+                  type="text"
+                  value={hearingData.location}
+                  onChange={(e) => setHearingData({...hearingData, location: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  {locale === 'am' ? 'የችሎት አይነት' : locale === 'om' ? 'Gosa Murtii' : 'Hearing Type'}
+                </label>
+                <select
+                  value={hearingData.hearing_type}
+                  onChange={(e) => setHearingData({...hearingData, hearing_type: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="REGULAR">Regular</option>
+                  <option value="EMERGENCY">Emergency</option>
+                </select>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  {locale === 'am' ? 'ማስታወሻ' : locale === 'om' ? 'Yaadannoo' : 'Notes'}
+                </label>
+                <textarea
+                  value={hearingData.notes}
+                  onChange={(e) => setHearingData({...hearingData, notes: e.target.value})}
+                  rows="3"
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowHearingModal(false)}
+                  className="flex-1 px-4 py-2 border border-gray-200 rounded-lg text-gray-700 hover:bg-gray-50"
+                >
+                  {locale === 'am' ? 'ሰርዝ' : locale === 'om' ? 'Haqi' : 'Cancel'}
+                </button>
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="flex-1 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg flex items-center justify-center gap-2"
+                >
+                  {submitting ? <FaSpinner className="animate-spin" /> : <FaCalendarAlt />}
+                  {locale === 'am' ? 'ችሎት ያዝ' : locale === 'om' ? 'Murtii Qindeessi' : 'Schedule'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ================= JUDGMENT MODAL ================= */}
+      {showJudgmentModal && selectedCase && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="border-b border-gray-200 px-6 py-4 flex justify-between items-center">
+              <h2 className="text-xl font-bold text-gray-800">
+                {locale === 'am' ? 'ውሳኔ ስጥ' : locale === 'om' ? 'Murtii Kenni' : 'Issue Judgment'}
+              </h2>
+              <button onClick={() => setShowJudgmentModal(false)} className="text-gray-400 hover:text-gray-600">
+                <FaTimesCircle size={24} />
+              </button>
+            </div>
+            
+            <form onSubmit={issueJudgment} className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  {locale === 'am' ? 'የውሳኔ ይዘት' : locale === 'om' ? 'Ibsa Murtii' : 'Judgment Text'} *
+                </label>
+                <textarea
+                  value={judgmentData.judgment_text}
+                  onChange={(e) => setJudgmentData({...judgmentData, judgment_text: e.target.value})}
+                  required
+                  rows="6"
+                  placeholder={locale === 'am' ? 'የውሳኔውን ዝርዝር ይግለጹ...' : 'Enter judgment details...'}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  {locale === 'am' ? 'የውሳኔ መጠን (ብር)' : locale === 'om' ? 'Gatii Murtii (Birrii)' : 'Judgment Amount (Birr)'}
+                </label>
+                <input
+                  type="number"
+                  value={judgmentData.judgment_amount}
+                  onChange={(e) => setJudgmentData({...judgmentData, judgment_amount: e.target.value})}
+                  placeholder="0.00"
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  step="0.01"
+                />
+              </div>
+              
+              <div>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={judgmentData.appealed}
+                    onChange={(e) => setJudgmentData({...judgmentData, appealed: e.target.checked})}
+                    className="w-4 h-4"
+                  />
+                  <span className="text-sm text-gray-700">
+                    {locale === 'am' ? 'ይግባኝ ቀርቧል' : locale === 'om' ? 'Murtii ol-eesse' : 'Appealed'}
+                  </span>
+                </label>
+              </div>
+              
+              {judgmentData.appealed && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    {locale === 'am' ? 'የይግባኝ ቀነ ገደብ' : locale === 'om' ? 'Yeroo daangaa murtii ol-eessaa' : 'Appeal Deadline'}
+                  </label>
+                  <input
+                    type="date"
+                    value={judgmentData.appeal_deadline}
+                    onChange={(e) => setJudgmentData({...judgmentData, appeal_deadline: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              )}
+              
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowJudgmentModal(false)}
+                  className="flex-1 px-4 py-2 border border-gray-200 rounded-lg text-gray-700 hover:bg-gray-50"
+                >
+                  {locale === 'am' ? 'ሰርዝ' : locale === 'om' ? 'Haqi' : 'Cancel'}
+                </button>
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="flex-1 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg flex items-center justify-center gap-2"
+                >
+                  {submitting ? <FaSpinner className="animate-spin" /> : <FaGavel />}
+                  {locale === 'am' ? 'ውሳኔ ስጥ' : locale === 'om' ? 'Murtii Kenni' : 'Issue Judgment'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ================= EDIT CASE MODAL ================= */}
+      {showEditModal && selectedCase && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full">
+            <div className="border-b border-gray-200 px-6 py-4 flex justify-between items-center">
+              <h2 className="text-xl font-bold text-gray-800">
+                {locale === 'am' ? 'ጉዳይ አርትዕ' : locale === 'om' ? 'Dhimicha Fooyyeessi' : 'Edit Case'}
+              </h2>
+              <button onClick={() => setShowEditModal(false)} className="text-gray-400 hover:text-gray-600">
+                <FaTimesCircle size={24} />
+              </button>
+            </div>
+            
+            <form onSubmit={handleUpdateCase} className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  {locale === 'am' ? 'ሁኔታ' : locale === 'om' ? 'Haala' : 'Status'}
+                </label>
+                <select
+                  name="status"
+                  value={editData.status}
+                  onChange={handleEditChange}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="PENDING">Pending</option>
+                  <option value="IN_PROGRESS">In Progress</option>
+                  <option value="RESOLVED">Resolved</option>
+                  <option value="APPEALED">Appealed</option>
+                  <option value="CLOSED">Closed</option>
+                </select>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  {locale === 'am' ? 'መግለጫ' : locale === 'om' ? 'Ibsa' : 'Description'}
+                </label>
+                <textarea
+                  name="description"
+                  value={editData.description}
+                  onChange={handleEditChange}
+                  rows="4"
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowEditModal(false)}
+                  className="flex-1 px-4 py-2 border border-gray-200 rounded-lg text-gray-700 hover:bg-gray-50"
+                >
+                  {locale === 'am' ? 'ሰርዝ' : locale === 'om' ? 'Haqi' : 'Cancel'}
+                </button>
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="flex-1 px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg flex items-center justify-center gap-2"
+                >
+                  {submitting ? <FaSpinner className="animate-spin" /> : <FaEdit />}
+                  {locale === 'am' ? 'አርትዕ' : locale === 'om' ? 'Fooyyeessi' : 'Update'}
                 </button>
               </div>
             </form>

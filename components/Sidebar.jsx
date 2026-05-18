@@ -10,7 +10,8 @@ import {
   FaIdCard, FaSyncAlt, FaGavel, FaNewspaper, FaUserFriends,
   FaBaby, FaSkull, FaRing, FaChartBar,
   FaUser, FaClipboardList, FaTachometerAlt, FaCog, FaSignOutAlt,
-  FaHome, FaUserCircle, FaBullhorn, FaTools, FaChartLine   
+  FaHome, FaUserCircle, FaBullhorn, FaTools, FaChartLine,
+  FaExchangeAlt  // ✅ Added for Transfer feature
 } from 'react-icons/fa';
 import { MdAdminPanelSettings, MdDashboard } from 'react-icons/md';
 import { GiConfirmed, GiFamilyHouse } from 'react-icons/gi';
@@ -81,6 +82,8 @@ export default function Sidebar({ role }) {
       { nameKey: 'sidebar.addResidents', path: "/dashboard/manager/add-resident", icon: FaUserPlus },
       { nameKey: 'sidebar.viewResidents', path: "/dashboard/manager/residents", icon: FaUserFriends },
       { nameKey: 'sidebar.socialCourt', path: "/dashboard/manager/social-court", icon: FaGavel },
+      { nameKey: 'sidebar.transferResident', path: "/dashboard/manager/transfer", icon: FaExchangeAlt },  // ✅ Added Transfer menu item
+      { nameKey: 'sidebar.transferredResidents', path: "/dashboard/manager/transferred-residents", icon: FaExchangeAlt },
       { nameKey: 'sidebar.serviceAnalytics', path: "/dashboard/manager/service-analytics", icon: FaChartLine },
       // { nameKey: 'sidebar.postNews', path: "/dashboard/manager/news", icon: FaNewspaper },
     ],

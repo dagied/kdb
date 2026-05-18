@@ -7,7 +7,7 @@ export async function GET(request) {
   const client = await getClient();
   
   try {
-    const session = await getSession();
+    const session = await getSession(request); // ✅ Add 'request' parameter
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -82,7 +82,7 @@ export async function POST(request) {
   const client = await getClient();
   
   try {
-    const session = await getSession();
+    const session = await getSession(request); // ✅ Add 'request' parameter
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -195,7 +195,7 @@ export async function PUT(request) {
   const client = await getClient();
   
   try {
-    const session = await getSession();
+    const session = await getSession(request); // ✅ Add 'request' parameter
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

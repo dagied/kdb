@@ -9,9 +9,28 @@ import {
   FaSkull, FaUser, FaCalendarAlt, FaMapMarkerAlt,
   FaFileAlt, FaSave, FaSpinner, FaPrint,
   FaCheckCircle, FaTimesCircle, FaSearch,
-  FaHeartbeat, FaUserFriends, FaEnvelope, FaBookOpen
+  FaHeartbeat, FaUserFriends, FaEnvelope, FaBookOpen,
+  FaGlobe, FaLanguage, FaBuilding, FaHome, FaUserGraduate,
+  FaBaby  // ← Add this line
 } from 'react-icons/fa';
 import { gregorianToEthiopian, ethiopianToGregorian, getCurrentEthiopianDate } from '@/utils/calendar';
+
+// Ethiopian months with correct English equivalents
+const ETHIOPIAN_MONTHS = [
+  { value: '01', nameEn: 'September', nameAm: 'መስከረም', nameFull: 'Meskerem' },
+  { value: '02', nameEn: 'October', nameAm: 'ጥቅምት', nameFull: 'Tikimt' },
+  { value: '03', nameEn: 'November', nameAm: 'ኅዳር', nameFull: 'Hidar' },
+  { value: '04', nameEn: 'December', nameAm: 'ታኅሣሥ', nameFull: 'Tahsas' },
+  { value: '05', nameEn: 'January', nameAm: 'ጥር', nameFull: 'Tir' },
+  { value: '06', nameEn: 'February', nameAm: 'የካቲት', nameFull: 'Yekatit' },
+  { value: '07', nameEn: 'March', nameAm: 'መጋቢት', nameFull: 'Megabit' },
+  { value: '08', nameEn: 'April', nameAm: 'ሚያዝያ', nameFull: 'Miazia' },
+  { value: '09', nameEn: 'May', nameAm: 'ግንቦት', nameFull: 'Ginbot' },
+  { value: '10', nameEn: 'June', nameAm: 'ሰኔ', nameFull: 'Sene' },
+  { value: '11', nameEn: 'July', nameAm: 'ሐምሌ', nameFull: 'Hamle' },
+  { value: '12', nameEn: 'August', nameAm: 'ነሐሴ', nameFull: 'Nehasse' },
+  { value: '13', nameEn: 'September (Leap)', nameAm: 'ጳጉሜ', nameFull: 'Pagumiene' }
+];
 
 function DeathCertificatePage() {
   const { t, locale } = useTranslation();
@@ -20,23 +39,40 @@ function DeathCertificatePage() {
   const [showPreview, setShowPreview] = useState(false);
   const [generatedId, setGeneratedId] = useState(null);
   const [error, setError] = useState(null);
-  const [deathCalendar, setDeathCalendar] = useState('gc');
-  const [burialCalendar, setBurialCalendar] = useState('gc');
+  const [deathCalendarMode, setDeathCalendarMode] = useState('gc');
+  const [burialCalendarMode, setBurialCalendarMode] = useState('gc');
   const [searchResident, setSearchResident] = useState(false);
+  const [birthDateMode, setBirthDateMode] = useState('gc');  // ← Add this line
   
   const [formData, setFormData] = useState({
+    // Deceased Information
     resident_id: '',
-    registration_number: '',
+    title: '',
     deceased_name: '',
     deceased_name_am: '',
     deceased_father_name: '',
     deceased_father_name_am: '',
+    deceased_grandfather_name: '',
+    deceased_grandfather_name_am: '',
+    sex: '',
+    nationality: 'Ethiopian',
+    
+    // Birth Information (for the deceased)
+    birth_registration_number: '',
+    birth_date_gc: '',
+    birth_date_ec: '',
+    
+    // Death Information
+    registration_number: '',
+    form_number: '',
     death_date_gc: '',
     death_date_ec: '',
     place_of_death: '',
     place_of_death_am: '',
     cause_of_death: '',
     cause_of_death_am: '',
+    
+    // Reporter Information
     reporter_name: '',
     reporter_name_am: '',
     reporter_relation: '',
@@ -44,24 +80,47 @@ function DeathCertificatePage() {
     reporter_phone: '',
     reporter_address: '',
     reporter_address_am: '',
-    registrar_name: '',
-    registrar_name_am: '',
+    
+    // Burial Information
     burial_place: '',
     burial_place_am: '',
     burial_date_gc: '',
-    burial_date_ec: ''
+    burial_date_ec: '',
+    
+    // Registrar Information
+    registrar_name: '',
+    registrar_name_am: '',
+    registrar_father_name: '',
+    registrar_grandfather_name: '',
+    registrar_km: '',
+    issue_date: ''
   });
 
   const handleSelectResident = (resident) => {
     setSelectedResident(resident);
+    
+    // Build full name including all name parts
+    const firstName = resident.fname || '';
+    const middleName = resident.mname || '';
+    const lastName = resident.lname || '';
+    const grandfatherName = resident.grandfather_name || '';
+    const fullNameEn = [firstName, middleName, lastName, grandfatherName].filter(Boolean).join(' ');
+    const fullNameAm = [
+      resident.fname_am, 
+      resident.mname_am, 
+      resident.lname_am, 
+      resident.grandfather_name_am
+    ].filter(Boolean).join(' ');
+    
     setFormData(prev => ({
       ...prev,
       resident_id: resident.resident_id,
-      deceased_name: `${resident.fname} ${resident.lname}`,
-      deceased_name_am: resident.fname_am && resident.lname_am ? `${resident.fname_am} ${resident.lname_am}` : '',
-      deceased_father_name: resident.father_name || resident.lname || '',
-      deceased_father_name_am: resident.father_name_am || resident.lname_am || '',
-      place_of_death: resident.place_of_birth || '',
+      deceased_name: fullNameEn,
+      deceased_name_am: fullNameAm,
+      deceased_father_name: resident.lname || '',
+      deceased_father_name_am: resident.lname_am || '',
+      sex: resident.gender || '',
+      nationality: resident.nationality || 'Ethiopian',
     }));
     setSearchResident(false);
   };
@@ -70,11 +129,20 @@ function DeathCertificatePage() {
     setSelectedResident(null);
     setFormData({
       resident_id: '',
-      registration_number: '',
+      title: '',
       deceased_name: '',
       deceased_name_am: '',
       deceased_father_name: '',
       deceased_father_name_am: '',
+      deceased_grandfather_name: '',
+      deceased_grandfather_name_am: '',
+      sex: '',
+      nationality: 'Ethiopian',
+      birth_registration_number: '',
+      birth_date_gc: '',
+      birth_date_ec: '',
+      registration_number: '',
+      form_number: '',
       death_date_gc: '',
       death_date_ec: '',
       place_of_death: '',
@@ -88,12 +156,16 @@ function DeathCertificatePage() {
       reporter_phone: '',
       reporter_address: '',
       reporter_address_am: '',
-      registrar_name: '',
-      registrar_name_am: '',
       burial_place: '',
       burial_place_am: '',
       burial_date_gc: '',
-      burial_date_ec: ''
+      burial_date_ec: '',
+      registrar_name: '',
+      registrar_name_am: '',
+      registrar_father_name: '',
+      registrar_grandfather_name: '',
+      registrar_km: '',
+      issue_date: ''
     });
   };
 
@@ -135,6 +207,49 @@ function DeathCertificatePage() {
           ...prev,
           death_date_ec: '',
           death_date_gc: ''
+        }));
+      }
+    }
+  };
+
+  const handleBirthDateChange = (value, calendar) => {
+    if (calendar === 'gc') {
+      if (value) {
+        try {
+          const ecDate = gregorianToEthiopian(value);
+          setFormData(prev => ({
+            ...prev,
+            birth_date_gc: value,
+            birth_date_ec: ecDate?.formattedEc || ''
+          }));
+        } catch (error) {
+          console.error('Error converting GC to EC date:', error);
+          setFormData(prev => ({
+            ...prev,
+            birth_date_gc: value,
+            birth_date_ec: ''
+          }));
+        }
+      } else {
+        setFormData(prev => ({
+          ...prev,
+          birth_date_gc: '',
+          birth_date_ec: ''
+        }));
+      }
+    } else {
+      if (value) {
+        const gcDate = ethiopianToGregorian(value);
+        setFormData(prev => ({
+          ...prev,
+          birth_date_ec: value,
+          birth_date_gc: gcDate?.formatted || ''
+        }));
+      } else {
+        setFormData(prev => ({
+          ...prev,
+          birth_date_ec: '',
+          birth_date_gc: ''
         }));
       }
     }
@@ -190,60 +305,55 @@ function DeathCertificatePage() {
   };
 
   const handleSubmit = async (e) => {
-  e.preventDefault();
-  setLoading(true);
-  setError(null);
-  
-  const registrationNumber = generateRegistrationNumber();
-  
-  const submitData = {
-    ...formData,
-    registration_number: registrationNumber,
-    registrar_name: formData.registrar_name || 'Kebele Administration',
-    registrar_name_am: formData.registrar_name_am || 'ቀበሌ አስተዳደር',
-    // ✅ Explicitly set resident_id from selectedResident if available
-    resident_id: selectedResident?.resident_id || formData.resident_id
-  };
-  
-  console.log('Submitting with resident_id:', submitData.resident_id);
-  
-  try {
-    const response = await fetch('/api/certificates/death', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(submitData)
-    });
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
     
-    const data = await response.json();
-    console.log('API Response:', data);
+    const registrationNumber = generateRegistrationNumber();
     
-    if (data.success) {
-      setGeneratedId(data.certificate_id || data.death_id);
-      setShowPreview(true);
-    } else {
-      setError(data.error || 'Failed to issue death certificate');
+    const submitData = {
+      ...formData,
+      registration_number: registrationNumber,
+      issue_date: formData.issue_date || new Date().toISOString().split('T')[0],
+      registrar_name: formData.registrar_name || 'Kebele Administration',
+      registrar_name_am: formData.registrar_name_am || 'ቀበሌ አስተዳደር',
+      resident_id: selectedResident?.resident_id || formData.resident_id
+    };
+    
+    console.log('Submitting death certificate:', submitData);
+    
+    try {
+      const response = await fetch('/api/certificates/death', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(submitData)
+      });
+      
+      const data = await response.json();
+      console.log('API Response:', data);
+      
+      if (data.success) {
+        setGeneratedId(data.certificate_id || data.death_id);
+        setShowPreview(true);
+      } else {
+        setError(data.error || 'Failed to issue death certificate');
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      setError('Network error. Please try again.');
+    } finally {
+      setLoading(false);
     }
-  } catch (error) {
-    console.error('Error:', error);
-    setError('Network error. Please try again.');
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
-const handlePrint = () => {
-  // ✅ FIXED: Use generatedId, not certificateId
-  if (generatedId) {
-    window.open(`/api/certificates/print/${generatedId}?type=death`, '_blank');
-  } else {
-    console.error('No certificate ID available for printing');
-    alert('Certificate ID not found. Please try again.');
-  }
-};
-
-  // const handlePrint = () => {
-  //   window.open(`/api/certificates/print/${certificateId}?type=death`, '_blank');
-  // };
+  const handlePrint = () => {
+    if (generatedId) {
+      window.open(`/api/certificates/print/${generatedId}?type=death`, '_blank');
+    } else {
+      console.error('No certificate ID available for printing');
+      alert('Certificate ID not found. Please try again.');
+    }
+  };
 
   const handleNew = () => {
     setShowPreview(false);
@@ -256,22 +366,10 @@ const handlePrint = () => {
 
   return (
     <Layout role="Record Officer">
-      {/* Add font support for Amharic */}
       <style jsx global>{`
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Ethiopic:wght@400;500;600;700&display=swap');
-        
-        .font-ethiopic, 
-        input[lang="am"], 
-        textarea[lang="am"],
-        .amharic-text {
-          font-family: 'Noto Sans Ethiopic', 'Nyala', 'Abyssinica SIL', 'Ethiopia Jiret', 'Visual Geez Unicode', 'Code2000', sans-serif;
-          font-weight: normal;
-          font-size: 1rem;
-          line-height: 1.5;
-        }
-        
-        * {
-          font-feature-settings: "locl";
+        .font-ethiopic {
+          font-family: 'Noto Sans Ethiopic', 'Nyala', 'Abyssinica SIL', sans-serif;
         }
       `}</style>
 
@@ -285,7 +383,6 @@ const handlePrint = () => {
             {locale === 'am' ? 'ሞት ይመዝግቡ እና ኦፊሴላዊ የሞት ማስረጃ ይስጡ' : 'Register a death and issue an official death certificate'}
           </p>
         </div>
-
 
         {error && (
           <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-red-700">
@@ -339,16 +436,63 @@ const handlePrint = () => {
             )}
 
             <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Deceased Information */}
+              {/* Deceased Information - Updated */}
               <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
                 <h2 className="font-semibold text-gray-800 mb-4 flex items-center gap-2 border-b pb-2">
                   <FaUser className="text-gray-600" />
                   {locale === 'am' ? 'የሟች መረጃ' : 'Deceased Information'}
                 </h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      {locale === 'am' ? 'ሙሉ ስም (እንግሊዝኛ)' : 'Full Name (English)'}
+                      {locale === 'am' ? 'ማዕረግ' : 'Title'}
+                    </label>
+                    <select
+                      value={formData.title}
+                      onChange={(e) => setFormData({...formData, title: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    >
+                      <option value="">{locale === 'am' ? 'ይምረጡ' : 'Select'}</option>
+                      <option value="Mr.">Mr.</option>
+                      <option value="Mrs.">Mrs.</option>
+                      <option value="Miss">Miss</option>
+                      <option value="Dr.">Dr.</option>
+                      <option value="Prof.">Prof.</option>
+                      <option value="Ato">Ato / አቶ</option>
+                      <option value="W/ro">W/ro / ወ/ሮ</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      {locale === 'am' ? 'ጾታ' : 'Sex'}
+                    </label>
+                    <select
+                      value={formData.sex}
+                      onChange={(e) => setFormData({...formData, sex: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    >
+                      <option value="">{locale === 'am' ? 'ይምረጡ' : 'Select'}</option>
+                      <option value="Male">Male / ወንድ</option>
+                      <option value="Female">Female / ሴት</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      {locale === 'am' ? 'ዜግነት' : 'Nationality'}
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.nationality}
+                      onChange={(e) => setFormData({...formData, nationality: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    />
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      {locale === 'am' ? 'ሙሉ ስም (እንግሊዝኛ)' : 'Full Name (English)'} *
                     </label>
                     <input
                       type="text"
@@ -374,7 +518,7 @@ const handlePrint = () => {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      {locale === 'am' ? 'የአባት ስም' : "Father's Name"}
+                      {locale === 'am' ? 'የአባት ስም' : "Father's Name"} *
                     </label>
                     <input
                       type="text"
@@ -394,31 +538,163 @@ const handlePrint = () => {
                       value={formData.deceased_father_name_am}
                       onChange={(e) => setFormData({...formData, deceased_father_name_am: e.target.value})}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg font-ethiopic"
-                      placeholder={locale === 'am' ? 'የአባት ስም በአማርኛ' : "Father's name in Amharic"}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      {locale === 'am' ? 'የአያት ስም' : "Grandfather's Name"}
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.deceased_grandfather_name}
+                      onChange={(e) => setFormData({...formData, deceased_grandfather_name: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      {locale === 'am' ? 'የአያት ስም (አማርኛ)' : "Grandfather's Name (Amharic)"}
+                    </label>
+                    <input
+                      type="text"
+                      lang="am"
+                      value={formData.deceased_grandfather_name_am}
+                      onChange={(e) => setFormData({...formData, deceased_grandfather_name_am: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg font-ethiopic"
                     />
                   </div>
                 </div>
               </div>
 
-              {/* Death Information */}
+              {/* Birth Information (for the deceased) */}
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                <h2 className="font-semibold text-gray-800 mb-4 flex items-center gap-2 border-b pb-2">
+                  <FaBaby className="text-blue-600" />
+                  {locale === 'am' ? 'የሟች የልደት መረጃ' : 'Deceased Birth Information'}
+                </h2>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      {locale === 'am' ? 'የልደት ምዝገባ ቁጥር' : 'Birth Registration Number'}
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.birth_registration_number}
+                      onChange={(e) => setFormData({...formData, birth_registration_number: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                      placeholder="e.g., BTH-2024-XXXX"
+                    />
+                  </div>
+                </div>
+                
+                <div className="flex gap-2 mt-4 mb-4">
+                  <button
+                    type="button"
+                    onClick={() => setBirthDateMode('gc')}
+                    className={`px-3 py-1 rounded-lg text-sm ${birthDateMode === 'gc' ? 'bg-blue-600 text-white' : 'bg-gray-100'}`}
+                  >
+                    Gregorian Calendar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBirthDateMode('ec')}
+                    className={`px-3 py-1 rounded-lg text-sm ${birthDateMode === 'ec' ? 'bg-blue-600 text-white' : 'bg-gray-100'}`}
+                  >
+                    Ethiopian Calendar
+                  </button>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {birthDateMode === 'gc' ? (
+                    <>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          {locale === 'am' ? 'የልደት ቀን (ግሪጎሪያን)' : 'Birth Date (GC)'}
+                        </label>
+                        <input
+                          type="date"
+                          value={formData.birth_date_gc}
+                          onChange={(e) => handleBirthDateChange(e.target.value, 'gc')}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          {locale === 'am' ? 'የልደት ቀን (ኢትዮጵያ)' : 'Birth Date (EC)'}
+                        </label>
+                        <input
+                          type="text"
+                          value={formData.birth_date_ec}
+                          readOnly
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 font-ethiopic"
+                        />
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          {locale === 'am' ? 'የልደት ቀን (ኢትዮጵያ)' : 'Birth Date (EC)'}
+                        </label>
+                        <input
+                          type="text"
+                          value={formData.birth_date_ec}
+                          onChange={(e) => handleBirthDateChange(e.target.value, 'ec')}
+                          placeholder="YYYY-MM-DD"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg font-ethiopic"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          {locale === 'am' ? 'የልደት ቀን (ግሪጎሪያን)' : 'Birth Date (GC)'}
+                        </label>
+                        <input
+                          type="text"
+                          value={formData.birth_date_gc}
+                          readOnly
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50"
+                        />
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Death Information - Updated with Form Number and Place of Death */}
               <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
                 <h2 className="font-semibold text-gray-800 mb-4 flex items-center gap-2 border-b pb-2">
                   <FaCalendarAlt className="text-red-600" />
                   {locale === 'am' ? 'የሞት መረጃ' : 'Death Information'}
                 </h2>
                 
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      {locale === 'am' ? 'የቅጽ ቁጥር' : 'Form Number'}
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.form_number}
+                      onChange={(e) => setFormData({...formData, form_number: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                      placeholder="e.g., DTH-001/2026"
+                    />
+                  </div>
+                </div>
+                
                 <div className="flex gap-2 mb-4">
                   <button
                     type="button"
-                    onClick={() => setDeathCalendar('gc')}
-                    className={`px-3 py-1 rounded-lg text-sm ${deathCalendar === 'gc' ? 'bg-blue-600 text-white' : 'bg-gray-100'}`}
+                    onClick={() => setDeathCalendarMode('gc')}
+                    className={`px-3 py-1 rounded-lg text-sm ${deathCalendarMode === 'gc' ? 'bg-blue-600 text-white' : 'bg-gray-100'}`}
                   >
                     Gregorian Calendar
                   </button>
                   <button
                     type="button"
-                    onClick={() => setDeathCalendar('ec')}
-                    className={`px-3 py-1 rounded-lg text-sm ${deathCalendar === 'ec' ? 'bg-blue-600 text-white' : 'bg-gray-100'}`}
+                    onClick={() => setDeathCalendarMode('ec')}
+                    className={`px-3 py-1 rounded-lg text-sm ${deathCalendarMode === 'ec' ? 'bg-blue-600 text-white' : 'bg-gray-100'}`}
                   >
                     Ethiopian Calendar
                   </button>
@@ -428,7 +704,7 @@ const handlePrint = () => {
                 </div>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {deathCalendar === 'gc' ? (
+                  {deathCalendarMode === 'gc' ? (
                     <>
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -439,7 +715,7 @@ const handlePrint = () => {
                           value={formData.death_date_gc || ''}
                           onChange={(e) => handleDeathDateChange(e.target.value, 'gc')}
                           required
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                         />
                       </div>
                       <div>
@@ -481,55 +757,57 @@ const handlePrint = () => {
                       </div>
                     </>
                   )}
+                  
                   <div className="md:col-span-2">
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       {locale === 'am' ? 'የሞት ቦታ' : 'Place of Death'}
                     </label>
-                    <input
-                      type="text"
-                      value={formData.place_of_death}
-                      onChange={(e) => setFormData({...formData, place_of_death: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                      placeholder={locale === 'am' ? 'ሆስፒታል፣ ቤት፣ ወዘተ' : 'Hospital, Home, etc.'}
-                    />
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={formData.place_of_death}
+                          onChange={(e) => setFormData({...formData, place_of_death: e.target.value})}
+                          placeholder={locale === 'am' ? 'ቦታ (እንግሊዝኛ)' : 'Place (English)'}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg pr-10"
+                        />
+                        <FaGlobe className="absolute right-3 top-3 text-gray-400" />
+                      </div>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          lang="am"
+                          value={formData.place_of_death_am}
+                          onChange={(e) => setFormData({...formData, place_of_death_am: e.target.value})}
+                          placeholder={locale === 'am' ? 'ቦታ (አማርኛ)' : 'Place (Amharic)'}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg pr-10 font-ethiopic"
+                        />
+                        <FaLanguage className="absolute right-3 top-3 text-gray-400" />
+                      </div>
+                    </div>
                   </div>
-                  <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      {locale === 'am' ? 'የሞት ቦታ (አማርኛ)' : 'Place of Death (Amharic)'}
-                    </label>
-                    <input
-                      type="text"
-                      lang="am"
-                      value={formData.place_of_death_am}
-                      onChange={(e) => setFormData({...formData, place_of_death_am: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg font-ethiopic"
-                      placeholder={locale === 'am' ? 'ቦታ በአማርኛ' : 'Place in Amharic'}
-                    />
-                  </div>
+                  
                   <div className="md:col-span-2">
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       {locale === 'am' ? 'የሞት መንስኤ' : 'Cause of Death'}
                     </label>
-                    <textarea
-                      value={formData.cause_of_death}
-                      onChange={(e) => setFormData({...formData, cause_of_death: e.target.value})}
-                      rows="2"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg resize-none"
-                      placeholder={locale === 'am' ? 'የሞት መንስኤ' : 'Medical cause of death'}
-                    />
-                  </div>
-                  <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      {locale === 'am' ? 'የሞት መንስኤ (አማርኛ)' : 'Cause of Death (Amharic)'}
-                    </label>
-                    <textarea
-                      lang="am"
-                      value={formData.cause_of_death_am}
-                      onChange={(e) => setFormData({...formData, cause_of_death_am: e.target.value})}
-                      rows="2"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg resize-none font-ethiopic"
-                      placeholder={locale === 'am' ? 'የሞት መንስኤ በአማርኛ' : 'Cause in Amharic'}
-                    />
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <textarea
+                        value={formData.cause_of_death}
+                        onChange={(e) => setFormData({...formData, cause_of_death: e.target.value})}
+                        rows="3"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg resize-none"
+                        placeholder={locale === 'am' ? 'የሞት መንስኤ (እንግሊዝኛ)' : 'Cause of death (English)'}
+                      />
+                      <textarea
+                        lang="am"
+                        value={formData.cause_of_death_am}
+                        onChange={(e) => setFormData({...formData, cause_of_death_am: e.target.value})}
+                        rows="3"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg resize-none font-ethiopic"
+                        placeholder={locale === 'am' ? 'የሞት መንስኤ (አማርኛ)' : 'Cause of death (Amharic)'}
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
@@ -540,51 +818,57 @@ const handlePrint = () => {
                   <FaMapMarkerAlt className="text-gray-600" />
                   {locale === 'am' ? 'የቀብር መረጃ' : 'Burial Information'}
                 </h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                   <div className="md:col-span-2">
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       {locale === 'am' ? 'የቀብር ቦታ' : 'Burial Place'}
                     </label>
-                    <input
-                      type="text"
-                      value={formData.burial_place}
-                      onChange={(e) => setFormData({...formData, burial_place: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                      placeholder={locale === 'am' ? 'የመቃብር ስም እና ቦታ' : 'Cemetery name and location'}
-                    />
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={formData.burial_place}
+                          onChange={(e) => setFormData({...formData, burial_place: e.target.value})}
+                          placeholder={locale === 'am' ? 'ቦታ (እንግሊዝኛ)' : 'Place (English)'}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg pr-10"
+                        />
+                        <FaGlobe className="absolute right-3 top-3 text-gray-400" />
+                      </div>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          lang="am"
+                          value={formData.burial_place_am}
+                          onChange={(e) => setFormData({...formData, burial_place_am: e.target.value})}
+                          placeholder={locale === 'am' ? 'ቦታ (አማርኛ)' : 'Place (Amharic)'}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg pr-10 font-ethiopic"
+                        />
+                        <FaLanguage className="absolute right-3 top-3 text-gray-400" />
+                      </div>
+                    </div>
                   </div>
-                  <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      {locale === 'am' ? 'የቀብር ቦታ (አማርኛ)' : 'Burial Place (Amharic)'}
-                    </label>
-                    <input
-                      type="text"
-                      lang="am"
-                      value={formData.burial_place_am}
-                      onChange={(e) => setFormData({...formData, burial_place_am: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg font-ethiopic"
-                      placeholder={locale === 'am' ? 'ቦታ በአማርኛ' : 'Place in Amharic'}
-                    />
-                  </div>
-                  
-                  <div className="flex gap-2 mb-2">
-                    <button
-                      type="button"
-                      onClick={() => setBurialCalendar('gc')}
-                      className={`px-3 py-1 rounded-lg text-sm ${burialCalendar === 'gc' ? 'bg-blue-600 text-white' : 'bg-gray-100'}`}
-                    >
-                      Gregorian Calendar
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setBurialCalendar('ec')}
-                      className={`px-3 py-1 rounded-lg text-sm ${burialCalendar === 'ec' ? 'bg-blue-600 text-white' : 'bg-gray-100'}`}
-                    >
-                      Ethiopian Calendar
-                    </button>
-                  </div>
-                  
-                  {burialCalendar === 'gc' ? (
+                </div>
+                
+                <div className="flex gap-2 mb-4">
+                  <button
+                    type="button"
+                    onClick={() => setBurialCalendarMode('gc')}
+                    className={`px-3 py-1 rounded-lg text-sm ${burialCalendarMode === 'gc' ? 'bg-blue-600 text-white' : 'bg-gray-100'}`}
+                  >
+                    Gregorian Calendar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBurialCalendarMode('ec')}
+                    className={`px-3 py-1 rounded-lg text-sm ${burialCalendarMode === 'ec' ? 'bg-blue-600 text-white' : 'bg-gray-100'}`}
+                  >
+                    Ethiopian Calendar
+                  </button>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {burialCalendarMode === 'gc' ? (
                     <>
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -648,55 +932,49 @@ const handlePrint = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      {locale === 'am' ? 'ሪፖርተር ስም' : 'Reporter Name'}
+                      {locale === 'am' ? 'ሪፖርተር ስም' : 'Reporter Name'} *
                     </label>
-                    <input
-                      type="text"
-                      value={formData.reporter_name}
-                      onChange={(e) => setFormData({...formData, reporter_name: e.target.value})}
-                      required
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                      placeholder={locale === 'am' ? 'ሞት ያሳወቀ ሰው' : 'Person reporting the death'}
-                    />
+                    <div className="grid grid-cols-1 gap-2">
+                      <input
+                        type="text"
+                        value={formData.reporter_name}
+                        onChange={(e) => setFormData({...formData, reporter_name: e.target.value})}
+                        required
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                        placeholder={locale === 'am' ? 'ስም (እንግሊዝኛ)' : 'Name (English)'}
+                      />
+                      <input
+                        type="text"
+                        lang="am"
+                        value={formData.reporter_name_am}
+                        onChange={(e) => setFormData({...formData, reporter_name_am: e.target.value})}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg font-ethiopic"
+                        placeholder={locale === 'am' ? 'ስም (አማርኛ)' : 'Name (Amharic)'}
+                      />
+                    </div>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      {locale === 'am' ? 'የሪፖርተር ስም (አማርኛ)' : 'Reporter Name (Amharic)'}
+                      {locale === 'am' ? 'ዝምድና' : 'Relationship'} *
                     </label>
-                    <input
-                      type="text"
-                      lang="am"
-                      value={formData.reporter_name_am}
-                      onChange={(e) => setFormData({...formData, reporter_name_am: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg font-ethiopic"
-                      placeholder={locale === 'am' ? 'ስም በአማርኛ' : 'Name in Amharic'}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      {locale === 'am' ? 'ዝምድና' : 'Relationship'}
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.reporter_relation}
-                      onChange={(e) => setFormData({...formData, reporter_relation: e.target.value})}
-                      required
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                      placeholder={locale === 'am' ? 'ልጅ፣ ሴት ልጅ፣ ባል፣ ሚስት፣ ወዘተ' : 'Son, Daughter, Spouse, etc.'}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      {locale === 'am' ? 'ዝምድና (አማርኛ)' : 'Relationship (Amharic)'}
-                    </label>
-                    <input
-                      type="text"
-                      lang="am"
-                      value={formData.reporter_relation_am}
-                      onChange={(e) => setFormData({...formData, reporter_relation_am: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg font-ethiopic"
-                      placeholder={locale === 'am' ? 'ዝምድና በአማርኛ' : 'Relationship in Amharic'}
-                    />
+                    <div className="grid grid-cols-1 gap-2">
+                      <input
+                        type="text"
+                        value={formData.reporter_relation}
+                        onChange={(e) => setFormData({...formData, reporter_relation: e.target.value})}
+                        required
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                        placeholder={locale === 'am' ? 'ዝምድና (እንግሊዝኛ)' : 'Relationship (English)'}
+                      />
+                      <input
+                        type="text"
+                        lang="am"
+                        value={formData.reporter_relation_am}
+                        onChange={(e) => setFormData({...formData, reporter_relation_am: e.target.value})}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg font-ethiopic"
+                        placeholder={locale === 'am' ? 'ዝምድና (አማርኛ)' : 'Relationship (Amharic)'}
+                      />
+                    </div>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -713,30 +991,28 @@ const handlePrint = () => {
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       {locale === 'am' ? 'አድራሻ' : 'Address'}
                     </label>
-                    <input
-                      type="text"
-                      value={formData.reporter_address}
-                      onChange={(e) => setFormData({...formData, reporter_address: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                    />
-                  </div>
-                  <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      {locale === 'am' ? 'አድራሻ (አማርኛ)' : 'Address (Amharic)'}
-                    </label>
-                    <input
-                      type="text"
-                      lang="am"
-                      value={formData.reporter_address_am}
-                      onChange={(e) => setFormData({...formData, reporter_address_am: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg font-ethiopic"
-                      placeholder={locale === 'am' ? 'አድራሻ በአማርኛ' : 'Address in Amharic'}
-                    />
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <input
+                        type="text"
+                        value={formData.reporter_address}
+                        onChange={(e) => setFormData({...formData, reporter_address: e.target.value})}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                        placeholder={locale === 'am' ? 'አድራሻ (እንግሊዝኛ)' : 'Address (English)'}
+                      />
+                      <input
+                        type="text"
+                        lang="am"
+                        value={formData.reporter_address_am}
+                        onChange={(e) => setFormData({...formData, reporter_address_am: e.target.value})}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg font-ethiopic"
+                        placeholder={locale === 'am' ? 'አድራሻ (አማርኛ)' : 'Address (Amharic)'}
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
 
-              {/* Registrar Information */}
+              {/* Registration Information - Updated with Registrar Family Names */}
               <div className="bg-gradient-to-r from-gray-50 to-blue-50 rounded-2xl p-6 border border-gray-200">
                 <h2 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
                   <FaFileAlt className="text-gray-600" />
@@ -745,7 +1021,7 @@ const handlePrint = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      {locale === 'am' ? 'መዝጋቢ ስም' : 'Registrar Name'}
+                      {locale === 'am' ? 'መዝጋቢ ስም' : 'Registrar Name'} *
                     </label>
                     <input
                       type="text"
@@ -753,7 +1029,7 @@ const handlePrint = () => {
                       onChange={(e) => setFormData({...formData, registrar_name: e.target.value})}
                       required
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                      placeholder={locale === 'am' ? 'የሲቪል መዝጋቢ ስም' : 'Name of civil registrar'}
+                      placeholder={locale === 'am' ? 'ስም (እንግሊዝኛ)' : 'Name (English)'}
                     />
                   </div>
                   <div>
@@ -767,6 +1043,53 @@ const handlePrint = () => {
                       onChange={(e) => setFormData({...formData, registrar_name_am: e.target.value})}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg font-ethiopic"
                       placeholder={locale === 'am' ? 'ስም በአማርኛ' : 'Name in Amharic'}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      {locale === 'am' ? 'የአባት ስም' : "Registrar's Father's Name"}
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.registrar_father_name}
+                      onChange={(e) => setFormData({...formData, registrar_father_name: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                      placeholder={locale === 'am' ? 'የአባት ስም' : "Father's name"}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      {locale === 'am' ? 'የአያት ስም' : "Registrar's Grandfather's Name"}
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.registrar_grandfather_name}
+                      onChange={(e) => setFormData({...formData, registrar_grandfather_name: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                      placeholder={locale === 'am' ? 'የአያት ስም' : "Grandfather's name"}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      {locale === 'am' ? 'ቀበሌ' : 'Kebele'}
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.registrar_km}
+                      onChange={(e) => setFormData({...formData, registrar_km: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                      placeholder={locale === 'am' ? 'ቀበሌ' : 'Kebele'}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      {locale === 'am' ? 'የወጣበት ቀን' : 'Issue Date'}
+                    </label>
+                    <input
+                      type="date"
+                      value={formData.issue_date}
+                      onChange={(e) => setFormData({...formData, issue_date: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                     />
                   </div>
                 </div>
