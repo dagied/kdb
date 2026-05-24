@@ -108,8 +108,12 @@
 
 // pages/api/analytics/predict.js
 export async function GET() {
+  const mlUrl = process.env.ML_API_URL || "http://localhost:8001";
+
   try {
-    const response = await fetch('http://localhost:8001/predict');
+    const response = await fetch(`${mlUrl}/predict`, {
+      cache: "no-store",
+    });
     const data = await response.json();
     return new Response(JSON.stringify(data), {
       status: 200,
