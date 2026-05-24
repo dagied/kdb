@@ -4,7 +4,7 @@ import { withAuth } from '@/components/withAuth';
 import { useEffect, useState } from "react";
 import Layout from "@/components/Layout";
 
-export default function ManageAccount() {
+function ManageAccount() {
   const [form, setForm] = useState({
     account_id: "",
     full_name: "",
