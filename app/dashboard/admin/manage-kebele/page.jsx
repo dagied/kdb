@@ -13,7 +13,7 @@ import {
 import { MdVerified, MdLocationCity, MdOutlineRequestPage } from 'react-icons/md';
 
 function ManageKebele() {
-  const [activeTab, setActiveTab] = useState('kebeles');
+  const [activeTab, setActiveTab] = useState('requests');
   const [kebeles, setKebeles] = useState([]);
   const [requests, setRequests] = useState([]);
   const [predictions, setPredictions] = useState(null);
@@ -32,13 +32,11 @@ function ManageKebele() {
   const [message, setMessage] = useState({ type: '', text: '' });
 
   useEffect(() => {
-    if (activeTab === 'kebeles') {
-      fetchKebeles();
-    } else if (activeTab === 'requests') {
+    if (activeTab === 'requests') {
       fetchRequests();
     } else if (activeTab === 'reports') {
-      if (kebeles.length === 0) fetchKebeles();
-      if (requests.length === 0) fetchRequests();
+      fetchKebeles();
+      fetchRequests();
       fetchPredictions();
     }
   }, [activeTab]);
@@ -94,102 +92,6 @@ function ManageKebele() {
     }
   };
 
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setMessage({ type: '', text: '' });
-
-    try {
-      const url = editingKebele 
-        ? `/api/kebeles/${editingKebele.kebele_id}` 
-        : '/api/kebeles';
-      const method = editingKebele ? 'PUT' : 'POST';
-
-      const response = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
-      });
-
-      const data = await response.json();
-
-      if (response.ok && data.success) {
-        setMessage({ 
-          type: 'success', 
-          text: editingKebele ? 'Kebele updated successfully!' : 'Kebele created successfully!' 
-        });
-        fetchKebeles();
-        closeModal();
-        setTimeout(() => setMessage({ type: '', text: '' }), 3000);
-      } else {
-        setMessage({ type: 'error', text: data.error || 'Failed to save kebele' });
-      }
-    } catch (error) {
-      console.error('Error saving kebele:', error);
-      setMessage({ type: 'error', text: 'Network error. Please try again.' });
-    }
-  };
-
-  const handleDelete = async (kebeleId, kebeleName) => {
-    if (!confirm(`Are you sure you want to delete "${kebeleName}"? This will also affect houses and households linked to this kebele.`)) {
-      return;
-    }
-
-    try {
-      const response = await fetch(`/api/kebeles/${kebeleId}`, {
-        method: 'DELETE'
-      });
-
-      const data = await response.json();
-
-      if (response.ok && data.success) {
-        setMessage({ type: 'success', text: 'Kebele deleted successfully!' });
-        fetchKebeles();
-        setTimeout(() => setMessage({ type: '', text: '' }), 3000);
-      } else {
-        setMessage({ type: 'error', text: data.error || 'Failed to delete kebele' });
-      }
-    } catch (error) {
-      console.error('Error deleting kebele:', error);
-      setMessage({ type: 'error', text: 'Network error. Please try again.' });
-    }
-  };
-
-  const openModal = (kebele = null) => {
-    if (kebele) {
-      setEditingKebele(kebele);
-      setFormData({
-        kebele_name: kebele.kebele_name,
-        description: kebele.description || ''
-      });
-    } else {
-      setEditingKebele(null);
-      setFormData({ kebele_name: '', description: '' });
-    }
-    setShowModal(true);
-  };
-
-  const closeModal = () => {
-    setShowModal(false);
-    setEditingKebele(null);
-    setFormData({ kebele_name: '', description: '' });
-  };
-
-  const filteredKebeles = kebeles.filter(kebele =>
-    kebele.kebele_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    kebele.description?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const totalPages = Math.ceil(filteredKebeles.length / itemsPerPage);
-  const paginatedKebeles = filteredKebeles.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
-
   const requestStats = {
     total: requests.length,
     pending: requests.filter(r => r.status === 'pending').length,
@@ -200,82 +102,6 @@ function ManageKebele() {
       : 0
   };
 
-  const KebeleModal = () => (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl max-w-md w-full">
-        <div className="border-b border-gray-200 px-6 py-4 flex justify-between items-center">
-          <h2 className="text-xl font-bold text-gray-800">
-            {editingKebele ? 'Edit Kebele' : 'Add New Kebele'}
-          </h2>
-          <button onClick={closeModal} className="text-gray-400 hover:text-gray-600">
-            <FaTimes size={24} />
-          </button>
-        </div>
-        
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Kebele Name *
-            </label>
-            <div className="relative">
-              <MdLocationCity className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input
-                type="text"
-                name="kebele_name"
-                value={formData.kebele_name}
-                onChange={handleInputChange}
-                required
-                className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Enter kebele name"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Description
-            </label>
-            <textarea
-              name="description"
-              value={formData.description}
-              onChange={handleInputChange}
-              rows="3"
-              className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-              placeholder="Enter kebele description (optional)"
-            />
-          </div>
-
-          {message.text && (
-            <div className={`p-3 rounded-xl text-sm ${
-              message.type === 'success' 
-                ? 'bg-green-50 text-green-700 border border-green-200'
-                : 'bg-red-50 text-red-700 border border-red-200'
-            }`}>
-              {message.text}
-            </div>
-          )}
-
-          <div className="flex gap-3 pt-4">
-            <button
-              type="button"
-              onClick={closeModal}
-              className="flex-1 px-4 py-2 border border-gray-200 rounded-xl text-gray-700 hover:bg-gray-50 transition"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition flex items-center justify-center gap-2"
-            >
-              <FaSave className="text-sm" />
-              {editingKebele ? 'Update' : 'Create'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-
   return (
     <Layout role="System Administrator">
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 py-8 px-4">
@@ -283,7 +109,6 @@ function ManageKebele() {
         {/* Tab Navigation */}
         <div className="flex gap-3 mb-6 justify-center flex-wrap">
           {[
-            { key: "kebeles", label: "Kebeles", icon: FaCity },
             { key: "requests", label: "Service Requests", icon: MdOutlineRequestPage },
             { key: "reports", label: "Reports & Analytics", icon: FaChartBar },
           ].map((tab) => {
@@ -306,180 +131,6 @@ function ManageKebele() {
         </div>
 
         <div className="max-w-6xl mx-auto">
-
-          {/* ================= KEBELES TAB ================= */}
-          {activeTab === "kebeles" && (
-            <>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-2xl font-bold text-gray-800">{kebeles.length}</p>
-                      <p className="text-xs text-gray-500">Total Kebeles</p>
-                    </div>
-                    <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                      <FaCity className="text-blue-600" />
-                    </div>
-                  </div>
-                </div>
-                <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-2xl font-bold text-green-600">
-                        {kebeles.filter(k => k.kebele_name).length}
-                      </p>
-                      <p className="text-xs text-gray-500">Active Kebeles</p>
-                    </div>
-                    <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
-                      <FaCheckCircle className="text-green-600" />
-                    </div>
-                  </div>
-                </div>
-                <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-2xl font-bold text-purple-600">+</p>
-                      <p className="text-xs text-gray-500">Add New</p>
-                    </div>
-                    <button 
-                      onClick={() => openModal()}
-                      className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center hover:bg-purple-200 transition"
-                    >
-                      <FaPlus className="text-purple-600" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {message.text && (
-                <div className={`mb-4 p-3 rounded-xl flex items-center gap-2 ${
-                  message.type === 'success' 
-                    ? 'bg-green-50 border border-green-200 text-green-700'
-                    : 'bg-red-50 border border-red-200 text-red-700'
-                }`}>
-                  {message.type === 'success' ? <FaCheckCircle /> : <FaTimesCircle />}
-                  <span className="text-sm">{message.text}</span>
-                </div>
-              )}
-
-              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-6">
-                <div className="flex flex-col md:flex-row gap-4">
-                  <div className="flex-1 relative">
-                    <FaSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                    <input
-                      type="text"
-                      placeholder="Search kebele by name or description..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-                  <button
-                    onClick={() => openModal()}
-                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition"
-                  >
-                    <FaPlus className="text-sm" />
-                    Add New Kebele
-                  </button>
-                </div>
-              </div>
-
-              <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-                {loading ? (
-                  <div className="flex items-center justify-center py-20">
-                    <FaSpinner className="animate-spin text-4xl text-blue-600" />
-                  </div>
-                ) : (
-                  <>
-                    <div className="overflow-x-auto">
-                      <table className="w-full">
-                        <thead className="bg-gray-50 border-b border-gray-200">
-                          <tr>
-                            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase">ID</th>
-                            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Kebele Name</th>
-                            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Description</th>
-                            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Created At</th>
-                            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-200">
-                          {paginatedKebeles.map((kebele) => (
-                            <tr key={kebele.kebele_id} className="hover:bg-gray-50 transition-colors">
-                              <td className="px-6 py-4 text-sm font-mono text-gray-600">{kebele.kebele_id}</td>
-                              <td className="px-6 py-4">
-                                <div className="flex items-center gap-2">
-                                  <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-                                    <MdLocationCity className="text-blue-600 text-sm" />
-                                  </div>
-                                  <span className="font-medium text-gray-900">{kebele.kebele_name}</span>
-                                </div>
-                              </td>
-                              <td className="px-6 py-4 text-sm text-gray-600 max-w-xs truncate">
-                                {kebele.description || '—'}
-                              </td>
-                              <td className="px-6 py-4 text-sm text-gray-600">
-                                {kebele.created_at ? new Date(kebele.created_at).toLocaleDateString() : 'N/A'}
-                              </td>
-                              <td className="px-6 py-4">
-                                <div className="flex items-center gap-2">
-                                  <button
-                                    onClick={() => openModal(kebele)}
-                                    className="text-green-600 hover:text-green-700 p-1 transition-colors"
-                                    title="Edit Kebele"
-                                  >
-                                    <FaEdit size={16} />
-                                  </button>
-                                  <button
-                                    onClick={() => handleDelete(kebele.kebele_id, kebele.kebele_name)}
-                                    className="text-red-600 hover:text-red-700 p-1 transition-colors"
-                                    title="Delete Kebele"
-                                  >
-                                    <FaTrash size={16} />
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-
-                    {totalPages > 1 && (
-                      <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between">
-                        <button
-                          onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                          disabled={currentPage === 1}
-                          className="px-3 py-1 border border-gray-200 rounded-lg disabled:opacity-50 hover:bg-gray-50 transition"
-                        >
-                          <FaChevronLeft />
-                        </button>
-                        <span className="text-sm text-gray-600">
-                          Page {currentPage} of {totalPages} ({filteredKebeles.length} kebeles)
-                        </span>
-                        <button
-                          onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                          disabled={currentPage === totalPages}
-                          className="px-3 py-1 border border-gray-200 rounded-lg disabled:opacity-50 hover:bg-gray-50 transition"
-                        >
-                          <FaChevronRight />
-                        </button>
-                      </div>
-                    )}
-
-                    {paginatedKebeles.length === 0 && (
-                      <div className="text-center py-12">
-                        <FaCity className="text-6xl text-gray-300 mx-auto mb-4" />
-                        <h3 className="text-lg font-medium text-gray-600 mb-2">No kebeles found</h3>
-                        <p className="text-sm text-gray-400">
-                          {searchTerm ? 'Try adjusting your search' : 'Click "Add New Kebele" to create one'}
-                        </p>
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-            </>
-          )}
 
           {/* ================= SERVICE REQUESTS TAB ================= */}
           {activeTab === "requests" && (
@@ -529,7 +180,6 @@ function ManageKebele() {
                         <th className="p-3 text-left text-sm font-semibold text-gray-700">Service Type</th>
                         <th className="p-3 text-left text-sm font-semibold text-gray-700">Status</th>
                         <th className="p-3 text-left text-sm font-semibold text-gray-700">Date</th>
-                        <th className="p-3 text-left text-sm font-semibold text-gray-700">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -552,11 +202,6 @@ function ManageKebele() {
                           </td>
                           <td className="p-3 text-sm text-gray-600">
                             {req.request_date ? new Date(req.request_date).toLocaleDateString() : 'N/A'}
-                          </td>
-                          <td className="p-3">
-                            <button className="text-blue-600 hover:text-blue-700 text-sm flex items-center gap-1">
-                              <FaEye size={12} /> View
-                            </button>
                           </td>
                         </tr>
                       ))}
@@ -758,8 +403,6 @@ function ManageKebele() {
 
         </div>
       </div>
-
-      {showModal && <KebeleModal />}
     </Layout>
   );
 }

@@ -106,56 +106,54 @@ function TransferPage() {
     setFormData(prev => ({ ...prev, departure_letter_file: null }));
   };
 
-  const handleSelectResident = (resident) => {
-    setSelectedResident(resident);
-    
-    // Build full name
-    const firstName = resident.fname || '';
-    const middleName = resident.mname || '';
-    const lastName = resident.lname || '';
-    const grandfatherName = resident.grandfather_name || '';
-    const fullNameEn = [firstName, middleName, lastName, grandfatherName].filter(Boolean).join(' ');
-    
-    // Build Amharic full name
-    const fullNameAm = [
-      resident.fname_am, 
-      resident.mname_am, 
-      resident.lname_am, 
-      resident.grandfather_name_am
-    ].filter(Boolean).join(' ');
-    
-    // Check if name is in Amharic (contains Ethiopic Unicode range)
-    const isAmharicName = /[\u1200-\u137F]/.test(fullNameEn);
-    
-    setFormData(prev => ({
-      ...prev,
-      resident_id: resident.resident_id,
-      resident_name: isAmharicName ? fullNameAm : fullNameEn,
-      resident_name_am: isAmharicName ? fullNameEn : fullNameAm
-    }));
-    
-    // Show Amharic input if name is in English, show English input if name is in Amharic
-    setShowAmharicInput(!isAmharicName);
-    setSearchResident(false);
-    
-    // Fetch family members
-    fetchFamilyMembers(resident.resident_id);
-  };
+const handleSelectResident = (resident) => {
+  setSelectedResident(resident);
+  
+  // Build full name - use fname and lname only (no mname)
+  const firstName = resident.fname || '';
+  const lastName = resident.lname || '';
+  const grandfatherName = resident.grandfather_name || '';
+  const fullNameEn = [firstName, lastName, grandfatherName].filter(Boolean).join(' ');
+  
+  // Build Amharic full name
+  const fullNameAm = [
+    resident.fname_am, 
+    resident.lname_am, 
+    resident.grandfather_name_am
+  ].filter(Boolean).join(' ');
+  
+  // Check if name is in Amharic (contains Ethiopic Unicode range)
+  const isAmharicName = /[\u1200-\u137F]/.test(fullNameEn);
+  
+  setFormData(prev => ({
+    ...prev,
+    resident_id: resident.resident_id,
+    resident_name: isAmharicName ? fullNameAm : fullNameEn,
+    resident_name_am: isAmharicName ? fullNameEn : fullNameAm
+  }));
+  
+  // Show Amharic input if name is in English, show English input if name is in Amharic
+  setShowAmharicInput(!isAmharicName);
+  setSearchResident(false);
+  
+  // Fetch family members
+  fetchFamilyMembers(resident.resident_id);
+};
 
-  const fetchFamilyMembers = async (residentId) => {
-    try {
-      const response = await fetch(`/api/residents/family?resident_id=${residentId}`);
-      const data = await response.json();
-      if (data.success && data.family) {
-        setFamilyMembers(data.family.map(member => ({
-          ...member,
-          is_transferring: false
-        })));
-      }
-    } catch (error) {
-      console.error('Error fetching family members:', error);
+ const fetchFamilyMembers = async (residentId) => {
+  try {
+    const response = await fetch(`/api/residents/family?resident_id=${residentId}`);
+    const data = await response.json();
+    if (data.success && data.family) {
+      setFamilyMembers(data.family.map(member => ({
+        ...member,
+        is_transferring: false
+      })));
     }
-  };
+  } catch (error) {
+    console.error('Error fetching family members:', error);
+  }
+};
 
   const toggleFamilyMember = (memberId) => {
     setFamilyMembers(prev => prev.map(member => 
@@ -481,7 +479,7 @@ function TransferPage() {
                             className="w-4 h-4 text-blue-600"
                           />
                           <div>
-                            <p className="font-medium text-gray-800">{member.name || `${member.fname} ${member.lname}`}</p>
+                            <p className="font-medium text-gray-800">{member.name || `${member.fname || ''} ${member.lname || ''}`}</p>
                             <p className="text-xs text-gray-500">{member.relationship || (locale === 'am' ? 'የቤተሰብ አባል' : 'Family Member')}</p>
                           </div>
                         </label>

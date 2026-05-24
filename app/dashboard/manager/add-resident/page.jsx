@@ -8,7 +8,8 @@ import {
   FaUserFriends, FaMapMarkerAlt,
   FaCalendarAlt, FaSave, FaSearch, FaPlus, FaTimes,
   FaSpinner, FaExclamationTriangle, FaExchangeAlt,
-  FaUpload, FaFilePdf, FaInfoCircle, FaGlobe
+  FaUpload, FaFilePdf, FaInfoCircle, FaGlobe,
+  FaLanguage  
 } from 'react-icons/fa';
 import { MdVerified } from 'react-icons/md';
 import { GiFamilyHouse } from 'react-icons/gi';
@@ -200,6 +201,7 @@ function StepPersonal({ data, onChange, t }) {
   };
 
   const [showTransferSection, setShowTransferSection] = useState(false);
+  const [showMultilingual, setShowMultilingual] = useState(false);
   const [transferFile, setTransferFile] = useState(null);
   const [transferPreview, setTransferPreview] = useState(null);
   const [transferFileName, setTransferFileName] = useState('');
@@ -252,33 +254,162 @@ function StepPersonal({ data, onChange, t }) {
         subtitleOm="Odeeffannoo bu'uuraa ilaalchisee jiraataa"
       />
       
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Field 
-          label="First Name" 
-          labelAm="ስም" 
-          labelOm="Maqaa" 
-          required
-        >
-          <Input icon={FaUser} placeholder={locale === 'am' ? 'ስም ያስገቡ' : locale === 'om' ? 'Maqaa galchi' : 'Enter first name'} value={data.first_name} onChange={e => onChange('first_name', e.target.value)} />
-        </Field>
-        <Field 
-          label="Father's Name" 
-          labelAm="የአባት ስም" 
-          labelOm="Maqaa Abbaa" 
-          required
-        >
-          <Input icon={FaUser} placeholder={locale === 'am' ? 'የአባት ስም ያስገቡ' : locale === 'om' ? 'Maqaa abbaa galchi' : "Enter father's name"} value={data.father_name} onChange={e => onChange('father_name', e.target.value)} />
-        </Field>
-        <Field 
-          label="Grandfather's Name" 
-          labelAm="የአያት ስም" 
-          labelOm="Maqaa Akakaa" 
-          required
-        >
-          <Input icon={FaUser} placeholder={locale === 'am' ? 'የአያት ስም ያስገቡ' : locale === 'om' ? 'Maqaa akakaa galchi' : "Enter grandfather's name"} value={data.grandfather_name} onChange={e => onChange('grandfather_name', e.target.value)} />
-        </Field>
+      {/* English Names Section - Required */}
+      <div className="bg-blue-50 rounded-lg p-4">
+        <div className="flex items-center gap-2 mb-3">
+          <FaGlobe className="text-blue-600" />
+          <h3 className="text-sm font-semibold text-blue-800">
+            {locale === 'am' ? 'የእንግሊዝኛ ስሞች' : locale === 'om' ? 'Maqoo Ingliffaa' : 'English Names'}
+          </h3>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Field 
+            label="First Name" 
+            labelAm="ስም" 
+            labelOm="Maqaa" 
+            required
+          >
+            <Input icon={FaUser} placeholder={locale === 'am' ? 'ስም ያስገቡ' : locale === 'om' ? 'Maqaa galchi' : 'Enter first name'} value={data.first_name} onChange={e => onChange('first_name', e.target.value)} />
+          </Field>
+          <Field 
+            label="Father's Name" 
+            labelAm="የአባት ስም" 
+            labelOm="Maqaa Abbaa" 
+            required
+          >
+            <Input icon={FaUser} placeholder={locale === 'am' ? 'የአባት ስም ያስገቡ' : locale === 'om' ? 'Maqaa abbaa galchi' : "Enter father's name"} value={data.father_name} onChange={e => onChange('father_name', e.target.value)} />
+          </Field>
+          <Field 
+            label="Grandfather's Name" 
+            labelAm="የአያት ስም" 
+            labelOm="Maqaa Akakaa" 
+            required
+          >
+            <Input icon={FaUser} placeholder={locale === 'am' ? 'የአያት ስም ያስገቡ' : locale === 'om' ? 'Maqaa akakaa galchi' : "Enter grandfather's name"} value={data.grandfather_name} onChange={e => onChange('grandfather_name', e.target.value)} />
+          </Field>
+        </div>
       </div>
-      
+
+      {/* Toggle for Multilingual Names */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <FaLanguage className="text-green-600" />
+          <span className="text-sm font-medium text-gray-700">
+            {locale === 'am' ? 'ተጨማሪ ቋንቋዎች' : locale === 'om' ? 'Afaanota Dabalataa' : 'Additional Languages'}
+          </span>
+        </div>
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={showMultilingual}
+            onChange={(e) => setShowMultilingual(e.target.checked)}
+            className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+          />
+          <span className="text-sm text-gray-600">
+            {locale === 'am' ? 'አማርኛ እና አፋን ኦሮሞ ስሞች ያስገቡ' : locale === 'om' ? 'Maqoo Afaan Oromoo fi Amaaraa galchi' : 'Add Amharic & Afaan Oromoo names'}
+          </span>
+        </label>
+      </div>
+
+      {/* Amharic and Oromo Names Section */}
+      {showMultilingual && (
+        <div className="bg-amber-50 rounded-lg p-4 border border-amber-200 space-y-4">
+          <div className="flex items-center gap-2">
+            <span className="text-lg">🇪🇹</span>
+            <h3 className="text-sm font-semibold text-amber-800">
+              {locale === 'am' ? 'የአማርኛ እና የኦሮምኛ ስሞች' : locale === 'om' ? 'Maqoo Afaan Amaaraa fi Afaan Oromoo' : 'Amharic & Afaan Oromoo Names'}
+            </h3>
+          </div>
+          
+          {/* Amharic Names */}
+          <div className="bg-white rounded-lg p-3">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-sm font-semibold text-amber-700">አማርኛ / Amharic</span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">ስም / First Name</label>
+                <input
+                  type="text"
+                  value={data.am_first_name || ''}
+                  onChange={(e) => onChange('am_first_name', e.target.value)}
+                  className="w-full px-3 py-2 border border-amber-300 rounded-lg font-ethiopic"
+                  placeholder="ስም በአማርኛ"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">የአባት ስም / Father's Name</label>
+                <input
+                  type="text"
+                  value={data.am_father_name || ''}
+                  onChange={(e) => onChange('am_father_name', e.target.value)}
+                  className="w-full px-3 py-2 border border-amber-300 rounded-lg font-ethiopic"
+                  placeholder="የአባት ስም በአማርኛ"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">የአያት ስም / Grandfather's Name</label>
+                <input
+                  type="text"
+                  value={data.am_grandfather_name || ''}
+                  onChange={(e) => onChange('am_grandfather_name', e.target.value)}
+                  className="w-full px-3 py-2 border border-amber-300 rounded-lg font-ethiopic"
+                  placeholder="የአያት ስም በአማርኛ"
+                />
+              </div>
+            </div>
+          </div>
+          
+          {/* Oromo Names */}
+          <div className="bg-white rounded-lg p-3">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-sm font-semibold text-amber-700">Afaan Oromoo </span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Maqaa / First Name</label>
+                <input
+                  type="text"
+                  value={data.om_first_name || ''}
+                  onChange={(e) => onChange('om_first_name', e.target.value)}
+                  className="w-full px-3 py-2 border border-amber-300 rounded-lg"
+                  placeholder="Maqaa Afaan Oromootiin"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Maqaa Abbaa / Father's Name</label>
+                <input
+                  type="text"
+                  value={data.om_father_name || ''}
+                  onChange={(e) => onChange('om_father_name', e.target.value)}
+                  className="w-full px-3 py-2 border border-amber-300 rounded-lg"
+                  placeholder="Maqaa abbaa Afaan Oromootiin"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Maqaa Akakaa / Grandfather's Name</label>
+                <input
+                  type="text"
+                  value={data.om_grandfather_name || ''}
+                  onChange={(e) => onChange('om_grandfather_name', e.target.value)}
+                  className="w-full px-3 py-2 border border-amber-300 rounded-lg"
+                  placeholder="Maqaa akakaa Afaan Oromootiin"
+                />
+              </div>
+            </div>
+          </div>
+          
+          <p className="text-xs text-amber-600 mt-2">
+            💡 {locale === 'am' 
+              ? 'እባክዎ የነዋሪውን ስም በአማርኛ እና በኦሮምኛ ያስገቡ (ካለ)'
+              : locale === 'om'
+              ? 'Maqaa jiraataa Afaan Amaaraafi Oromootiin galchi (yoo jiraate)'
+              : 'Enter the resident\'s name in Amharic and Afaan Oromo (if available)'}
+          </p>
+        </div>
+      )}
+
+      {/* Rest of the personal info fields */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Field 
           label="Date of Birth" 
@@ -1269,6 +1400,9 @@ export default function AddResidentPage() {
     gender: '', marital_status: '', place_of_birth: '', nationality: 'Ethiopian',
     national_id: '', previous_kebele: '', proof_of_residence: '',
     transfer_clearance_file: null,
+    // Multilingual name fields
+    am_first_name: '', am_father_name: '', am_grandfather_name: '',
+    om_first_name: '', om_father_name: '', om_grandfather_name: '',
   };
 
   const BLANK_HOUSEHOLD = {
@@ -1331,64 +1465,92 @@ export default function AddResidentPage() {
     return null;
   };
 
-  const handleSubmit = async () => {
-    setApiErrors([]);
-    setSubmitting(true);
+ const handleSubmit = async () => {
+  setApiErrors([]);
+  setSubmitting(true);
 
-    let transferClearanceBase64 = null;
-    if (personal.transfer_clearance_file) {
-      transferClearanceBase64 = await convertToBase64(personal.transfer_clearance_file);
-    }
+  let transferClearanceBase64 = null;
+  if (personal.transfer_clearance_file) {
+    transferClearanceBase64 = await convertToBase64(personal.transfer_clearance_file);
+  }
 
-    const payload = {
-      first_name: personal.first_name,
-      father_name: personal.father_name,
-      grandfather_name: personal.grandfather_name,
-      date_of_birth: personal.date_of_birth,
-      gender: personal.gender,
-      marital_status: personal.marital_status,
-      place_of_birth: personal.place_of_birth,
-      nationality: personal.nationality,
-      national_id: personal.national_id,
-      previous_kebele: personal.previous_kebele,
-      proof_of_residence: personal.proof_of_residence,
-      transfer_clearance_file: transferClearanceBase64,
-      house_id: household.house_id,
-      household_role: household.household_role,
-      household_head_name: household.household_head_name,
-      verified_by: household.verified_by,
-      verification_date: household.verification_date,
-      verification_note: household.verification_note,
-      create_new_household: household.create_new_household === true,
-      household_id: household.create_new_household ? null : (household.household_id ? Number(household.household_id) : null),
-      job_title: contactJob.job_title,
-      employer: contactJob.employer,
-      education_level: contactJob.education_level,
-      religion: contactJob.religion,
-      notes: contactJob.notes,
-      phones: phones.filter(Boolean),
-    };
-
-    try {
-      const res = await fetch('/api/manager/add-resident', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      const data = await res.json();
-
-      if (!res.ok || !data.success) {
-        setApiErrors(data.errors || [data.message || data.error || 'An error occurred.']);
-        return;
-      }
-
-      setSubmitResult(data);
-    } catch (err) {
-      setApiErrors(['Network error. Please check your connection and try again.']);
-    } finally {
-      setSubmitting(false);
-    }
+  const payload = {
+    // English names (required)
+    first_name: personal.first_name,
+    father_name: personal.father_name,
+    grandfather_name: personal.grandfather_name,
+    date_of_birth: personal.date_of_birth,
+    gender: personal.gender,
+    marital_status: personal.marital_status,
+    place_of_birth: personal.place_of_birth,
+    nationality: personal.nationality,
+    national_id: personal.national_id,
+    previous_kebele: personal.previous_kebele,
+    proof_of_residence: personal.proof_of_residence,
+    transfer_clearance_file: transferClearanceBase64,
+    
+    // Amharic names (optional)
+    first_name_am: personal.am_first_name,
+    father_name_am: personal.am_father_name,
+    grandfather_name_am: personal.am_grandfather_name,
+    
+    // Oromo names (optional)
+    first_name_om: personal.om_first_name,
+    father_name_om: personal.om_father_name,
+    grandfather_name_om: personal.om_grandfather_name,
+    
+    // Household data
+    house_id: household.house_id,
+    household_role: household.household_role,
+    household_head_name: household.household_head_name,
+    verified_by: household.verified_by,
+    verification_date: household.verification_date,
+    verification_note: household.verification_note,
+    create_new_household: household.create_new_household === true,
+    household_id: household.create_new_household ? null : (household.household_id ? Number(household.household_id) : null),
+    
+    // Contact & Job
+    job_title: contactJob.job_title,
+    employer: contactJob.employer,
+    education_level: contactJob.education_level,
+    religion: contactJob.religion,
+    notes: contactJob.notes,
+    phones: phones.filter(Boolean),
   };
+
+  console.log('Submitting payload with multilingual names:', {
+    amharic: {
+      first: payload.first_name_am,
+      father: payload.father_name_am,
+      grandfather: payload.grandfather_name_am
+    },
+    oromo: {
+      first: payload.first_name_om,
+      father: payload.father_name_om,
+      grandfather: payload.grandfather_name_om
+    }
+  });
+
+  try {
+    const res = await fetch('/api/manager/add-resident', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+
+    if (!res.ok || !data.success) {
+      setApiErrors(data.errors || [data.message || data.error || 'An error occurred.']);
+      return;
+    }
+
+    setSubmitResult(data);
+  } catch (err) {
+    setApiErrors(['Network error. Please check your connection and try again.']);
+  } finally {
+    setSubmitting(false);
+  }
+};
 
   const resetForm = () => {
     setSubmitResult(null);

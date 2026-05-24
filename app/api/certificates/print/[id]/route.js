@@ -80,11 +80,10 @@ export async function GET(request, { params }) {
   );
   certificate = result.rows[0];
   if (certificate) {
-    // Get transfer data
     const transferResult = await client.query(
       `SELECT t.*, 
-              CONCAT(r.fname, ' ', r.lname) as resident_name,
-              CONCAT(r.fname_am, ' ', r.lname_am) as resident_name_am,
+              t.resident_name, 
+              t.resident_name_am,
               r.house_id
        FROM transfer_request t
        LEFT JOIN resident r ON r.resident_id = t.resident_id
@@ -92,27 +91,15 @@ export async function GET(request, { params }) {
       [certificate.transfer_id]
     );
     const transfer = transferResult.rows[0];
-    
-    // ✅ Fetch family members for this transfer
     const familyResult = await client.query(
-      `SELECT tfm.*, 
-              CONCAT(r.fname, ' ', r.lname) as member_name,
-              CONCAT(r.fname_am, ' ', r.lname_am) as member_name_am
-       FROM transfer_family_members tfm
-       LEFT JOIN resident r ON r.resident_id = tfm.family_member_id
-       WHERE tfm.transfer_id = $1 AND tfm.is_transferring = true`,
+      `SELECT * FROM transfer_family_members WHERE transfer_id = $1 AND is_transferring = true`,
       [certificate.transfer_id]
     );
-    
     const certificateData = {
       ...certificate,
       ...transfer,
-      certificate_number: certificate.certificate_number,
-      family_members: familyResult.rows.map(m => ({
-        name: m.member_name || m.name,
-        name_am: m.member_name_am || m.name_am,
-        relationship: m.relationship
-      }))
+      family_members: familyResult.rows,
+      certificate_number: certificate.certificate_number
     };
     htmlTemplate = generateTransferCertificateHTML(certificateData);
   }
@@ -1203,6 +1190,13 @@ function generateTransferCertificateHTML(data) {
   const fmt = (d) => d ? new Date(d).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '';
   const issueDate = data.issue_date || new Date();
   
+  // Debug logging
+  console.log('Transfer Certificate Data:', {
+    resident_name: data.resident_name,
+    resident_name_am: data.resident_name_am,
+    transfer_number: data.transfer_number
+  });
+  
   // Get both English and Amharic names
   const residentNameEn = data.resident_name || data.residentName || '_________';
   const residentNameAm = data.resident_name_am || data.residentNameAm || '';
@@ -1288,7 +1282,7 @@ function generateTransferCertificateHTML(data) {
     .info-label { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: #6c757d; font-weight: 600; margin-bottom: 4px; }
     .info-label-am { font-family: 'Noto Sans Ethiopic', sans-serif; font-size: 10px; color: #6c757d; margin-bottom: 4px; }
     .info-value { font-size: 14px; font-weight: 600; color: #1a3a5c; margin-top: 4px; line-height: 1.4; }
-    .info-value-am { font-family: 'Noto Sans Ethiopic', sans-serif; font-size: 13px; color: #1a3a5c; margin-top: 2px; }
+    .info-value-am { font-family: 'Noto Sans Ethiopic', sans-serif; font-size: 13px; color: #1a3a5c; margin-top: 2px; border-bottom: 1px dotted #aaa; padding-bottom: 2px; }
     .family-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
     .family-table th, .family-table td { border: 1px solid #ddd; padding: 8px; text-align: left; font-size: 12px; }
     .family-table th { background: #f0f0f0; font-weight: bold; }
@@ -1333,7 +1327,7 @@ function generateTransferCertificateHTML(data) {
           <div class="info-label">RESIDENT NAME / የነዋሪ ስም</div>
           <div class="info-label-am">የነዋሪ ስም</div>
           <div class="info-value">${residentNameEn}</div>
-          ${residentNameAm ? `<div class="info-value-am">${residentNameAm}</div>` : ''}
+          ${residentNameAm ? `<div class="info-value-am" style="margin-top: 5px;">${residentNameAm}</div>` : ''}
         </div>
         
         <div class="info-card">
@@ -1380,7 +1374,7 @@ function generateTransferCertificateHTML(data) {
             <tr>
               <td>
                 ${member.name || ''}
-                ${member.name_am ? `<br/><small class="font-ethiopic">${member.name_am}</small>` : ''}
+                ${member.name_am ? `<br/><small style="font-family: 'Noto Sans Ethiopic', sans-serif;">${member.name_am}</small>` : ''}
               </td>
               <td>${member.relationship || 'Family Member'}</td>
             </tr>
@@ -1404,8 +1398,8 @@ function generateTransferCertificateHTML(data) {
     </div>
     
     <div class="footer">
-      <p>This certificate confirms the resident has been cleared for transfer to the specified kebele.</p>
-      <p>ይህ ሰርትፊኬት ነዋሪው ወደተገለጸው ቀበሌ ለመዘዋወር መፈቀዱን ያረጋግጣል።</p>
+      <p>This certificate is computer-generated and valid for legal purposes</p>
+      <p>ይህ ሰርትፊኬት በኮምፒውተር የወጣ እና ለህጋዊ ጉዳይ የሚሠራ ነው</p>
       <p>Issued on: ${fmt(issueDate)}</p>
     </div>
   </div>

@@ -63,7 +63,6 @@ export async function POST(req) {
       body.create_new_household === '1';
     
     console.log('Should create new household?', shouldCreateNewHousehold);
-    console.log('create_new_household raw value:', body.create_new_household);
     
     if (shouldCreateNewHousehold) {
       console.log('Creating new household for house:', body.house_id);
@@ -158,8 +157,12 @@ export async function POST(req) {
 
     const genderCode = body.gender === 'Male' ? 'M' : (body.gender === 'Female' ? 'F' : null);
 
+    // Build full name for display
     const fullName = [body.first_name, body.father_name, body.grandfather_name].filter(Boolean).join(' ');
 
+    // ============================================================
+    // INSERT INTO RESIDENT TABLE (English names only)
+    // ============================================================
     const residentResult = await client.query(
       `INSERT INTO resident (
         fname, lname, grandfather_name, sex, birthdate,
@@ -204,8 +207,57 @@ export async function POST(req) {
     );
 
     const residentId = residentResult.rows[0].resident_id;
+    console.log('✅ Resident created with ID:', residentId);
 
-    // Insert phone contacts
+    // ============================================================
+    // INSERT AMHARIC TRANSLATIONS (if provided)
+    // ============================================================
+    if (body.first_name_am || body.father_name_am || body.grandfather_name_am) {
+      await client.query(
+        `INSERT INTO resident_translations (resident_id, language_code, first_name, father_name, grandfather_name)
+         VALUES ($1, 'am', $2, $3, $4)
+         ON CONFLICT (resident_id, language_code) 
+         DO UPDATE SET 
+           first_name = EXCLUDED.first_name,
+           father_name = EXCLUDED.father_name,
+           grandfather_name = EXCLUDED.grandfather_name,
+           updated_at = NOW()`,
+        [
+          residentId,
+          body.first_name_am || null,
+          body.father_name_am || null,
+          body.grandfather_name_am || null
+        ]
+      );
+      console.log('✅ Amharic translations added for resident:', residentId);
+    }
+
+    // ============================================================
+    // INSERT OROMO TRANSLATIONS (if provided)
+    // ============================================================
+    if (body.first_name_om || body.father_name_om || body.grandfather_name_om) {
+      await client.query(
+        `INSERT INTO resident_translations (resident_id, language_code, first_name, father_name, grandfather_name)
+         VALUES ($1, 'om', $2, $3, $4)
+         ON CONFLICT (resident_id, language_code) 
+         DO UPDATE SET 
+           first_name = EXCLUDED.first_name,
+           father_name = EXCLUDED.father_name,
+           grandfather_name = EXCLUDED.grandfather_name,
+           updated_at = NOW()`,
+        [
+          residentId,
+          body.first_name_om || null,
+          body.father_name_om || null,
+          body.grandfather_name_om || null
+        ]
+      );
+      console.log('✅ Oromo translations added for resident:', residentId);
+    }
+
+    // ============================================================
+    // INSERT PHONE CONTACTS
+    // ============================================================
     if (body.phones && Array.isArray(body.phones) && body.phones.length > 0) {
       const validPhones = body.phones.filter(p => p && p.trim());
       for (let i = 0; i < validPhones.length; i++) {
@@ -215,12 +267,11 @@ export async function POST(req) {
           [residentId, validPhones[i].trim(), 'phone', i === 0]
         );
       }
+      console.log('✅ Phone contacts added for resident:', residentId);
     }
 
     // ============================================================
-    // CREATE SERVICE REQUEST FOR ID REGISTRATION - FIXED
-    // Using correct table name 'service_request' (singular)
-    // Using only columns that exist in your table
+    // CREATE SERVICE REQUEST FOR ID REGISTRATION
     // ============================================================
     let serviceRequestId = null;
     let serviceId = null;
@@ -249,8 +300,6 @@ export async function POST(req) {
     }
     
     if (serviceId) {
-      // ✅ FIXED: Using correct table name 'service_request' (singular)
-      // ✅ FIXED: Removed 'request_number', 'created_by', 'priority' columns
       const serviceRequestResult = await client.query(
         `INSERT INTO service_request (
           service_id, resident_id, status, request_date, notes
@@ -267,10 +316,18 @@ export async function POST(req) {
       console.log('✅ Service request created for ID registration, ID:', serviceRequestId);
     }
 
+    // ============================================================
+    // AUDIT LOG
+    // ============================================================
     const staffId = session.user?.staff_id || session.user?.id;
     const ipAddress = req.headers.get('x-forwarded-for')?.split(',')[0] || 
                       req.headers.get('x-real-ip') || 
                       'unknown';
+    
+    // Get translations for audit log
+    const translations = [];
+    if (body.first_name_am) translations.push('Amharic');
+    if (body.first_name_om) translations.push('Oromo');
     
     await client.query(
       `INSERT INTO audit_log (staff_id, action, table_name, record_id, new_value, ip_address, created_at)
@@ -287,6 +344,7 @@ export async function POST(req) {
           household_code: finalHouseholdCode,
           role: body.household_role,
           house_id: body.house_id,
+          translations: translations.length > 0 ? `Added translations: ${translations.join(', ')}` : 'No translations added',
           service_request_id: serviceRequestId
         }),
         ipAddress,
@@ -294,6 +352,7 @@ export async function POST(req) {
     );
 
     await client.query('COMMIT');
+    console.log('✅ Transaction committed successfully');
 
     return NextResponse.json({
       success: true,
@@ -301,7 +360,11 @@ export async function POST(req) {
       resident_id: residentId,
       household_id: finalHouseholdId,
       household_code: finalHouseholdCode,
-      service_request_id: serviceRequestId
+      service_request_id: serviceRequestId,
+      translations_added: {
+        amharic: !!(body.first_name_am || body.father_name_am || body.grandfather_name_am),
+        oromo: !!(body.first_name_om || body.father_name_om || body.grandfather_name_om)
+      }
     });
 
   } catch (error) {

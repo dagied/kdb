@@ -289,7 +289,7 @@ const fetchData = async () => {
                 {locale === 'am' ? 'ቋንቋ:' : locale === 'om' ? 'Afaan:' : 'Language:'}
               </span>
               <span className="ml-1 font-medium text-gray-700">
-                {locale === 'am' ? 'አማርኛ' : locale === 'om' ? 'Oromoo' : 'English'}
+                {locale === 'am' ? 'አማርኛ' : locale === 'om' ? 'Afan Oromoo' : 'English'}
               </span>
             </div>
             <button 
@@ -338,21 +338,6 @@ const fetchData = async () => {
                 <MdPending className="text-4xl" />
               </div>
             </div>
-          </div>
-        </div>
-
-        {/* Service Cards Grid */}
-        <div>
-          <h2 className="font-semibold text-gray-700 text-lg mb-4 flex items-center gap-2">
-            <FaSearch className="text-blue-600" />
-            {locale === 'am' ? 'የአገልግሎት ጥያቄዎች አሀዛዊ መረጃ' : 
-              locale === 'om' ? 'Ibsa lakkoofsa yyaannoo tajaajila' : 
-              'Service Request Statistics'}
-          </h2>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-            {serviceCards.map((card, index) => (
-              <ServiceCard key={index} {...card} />
-            ))}
           </div>
         </div>
 

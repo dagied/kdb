@@ -9,7 +9,7 @@ import { useState } from 'react';
 const languages = [
   { code: 'en', name: 'English', flag: '🇬🇧' },
   { code: 'am', name: 'አማርኛ', flag: '🇪🇹' },
-  { code: 'om', name: 'Oromoo', flag: '🇪🇹' }
+  { code: 'om', name: 'Afan Oromoo', flag: '🇪🇹' }
 ];
 
 const ROLE_LABELS = {

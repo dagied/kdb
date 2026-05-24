@@ -1,4 +1,3 @@
-// app/api/id-card/issue/route.js
 import { NextResponse } from 'next/server';
 import { getClient } from '@/_lib/db';
 import { getSession } from '@/_lib/auth';
@@ -27,9 +26,22 @@ export async function POST(request) {
     }
 
     const body = await request.json();
-    const { resident_id, id_number, issue_date } = body;
+    const { 
+      resident_id, 
+      full_name_am, 
+      father_name_am,
+      grandfather_name_am,
+      emergency_contact_name,
+      emergency_relationship,
+      emergency_phone,
+      emergency_alt_phone,
+      emergency_address,
+      medical_notes,
+      photo_url,
+      phone
+    } = body;
 
-    console.log('📝 Request body:', { resident_id, id_number, issue_date });
+    console.log('📝 Request body:', { resident_id, full_name_am, father_name_am, emergency_contact_name });
 
     if (!resident_id) {
       return NextResponse.json(
@@ -38,13 +50,58 @@ export async function POST(request) {
       );
     }
 
+    // ============================================================
+    // ✅ CHECK FOR EXISTING ACTIVE ID CARD
+    // ============================================================
+    const existingIdCard = await client.query(
+      `SELECT id_card_id, id_number, issue_date_gc, expiry_date_gc, status 
+       FROM id_card 
+       WHERE resident_id = $1 AND status = 'active'`,
+      [resident_id]
+    );
+
+    if (existingIdCard.rows.length > 0) {
+      const existing = existingIdCard.rows[0];
+      
+      // Check if the card is still valid (not expired)
+      const today = new Date().toISOString().split('T')[0];
+      const isExpired = existing.expiry_date_gc < today;
+      
+      if (!isExpired) {
+        console.log('❌ Resident already has an active ID card:', existing.id_number);
+        return NextResponse.json(
+          { 
+            success: false, 
+            message: 'Resident already has an active ID card',
+            existing_id: existing.id_card_id,
+            existing_id_number: existing.id_number,
+            issue_date: existing.issue_date_gc,
+            expiry_date: existing.expiry_date_gc
+          },
+          { status: 409 }
+        );
+      } else {
+        // Card is expired, mark it as expired and proceed with new issuance
+        console.log('⚠️ Existing ID card is expired, issuing new one and marking old as expired');
+        await client.query(
+          `UPDATE id_card 
+           SET status = 'expired', updated_at = NOW() 
+           WHERE id_card_id = $1`,
+          [existing.id_card_id]
+        );
+      }
+    }
+
     // Get resident info with all required fields for the ID card
     const residentInfo = await client.query(
       `SELECT 
         r.resident_id, 
         r.fname, 
         r.lname,
+        r.fname_am,
+        r.lname_am,
         r.grandfather_name,
+        r.grandfather_name_am,
         r.sex,
         r.birthdate,
         r.marital_status,
@@ -74,43 +131,44 @@ export async function POST(request) {
     );
     
     const phoneNumbers = phoneResult.rows.map(row => row.phone);
-    const primaryPhone = phoneNumbers.length > 0 ? phoneNumbers[0] : 'N/A';
+    const primaryPhone = body.phone || (phoneNumbers.length > 0 ? phoneNumbers[0] : null);
 
     const resident = residentInfo.rows[0];
     
-    // Build full name
-    const fullName = `${resident.fname} ${resident.lname || ''} ${resident.grandfather_name || ''}`.trim();
+    // Build full name with Amharic support
+    const fullNameEn = `${resident.fname} ${resident.lname || ''} ${resident.grandfather_name || ''}`.trim();
+    const fullNameAm = body.full_name_am || `${resident.fname_am || ''} ${resident.lname_am || ''} ${resident.grandfather_name_am || ''}`.trim();
+    
+    // Father name with Amharic support
+    const fatherNameEn = resident.lname || '';
+    const fatherNameAm = body.father_name_am || resident.lname_am || '';
+    
+    // Grandfather name with Amharic support
+    const grandfatherNameEn = resident.grandfather_name || '';
+    const grandfatherNameAm = body.grandfather_name_am || resident.grandfather_name_am || '';
     
     // Get house number
-    const houseNumber = resident.house_no || resident.house_id || 'N/A';
+    const houseNumber = resident.house_no || resident.house_id || '';
     
     // Marital status
-    const maritalStatus = resident.marital_status || 'N/A';
-    
-    // Grandfather name
-    const grandfatherName = resident.grandfather_name || 'N/A';
+    const maritalStatus = resident.marital_status || '';
     
     // Place of birth
-    const placeOfBirth = resident.place_of_birth || 'N/A';
+    const placeOfBirth = resident.place_of_birth || '';
     
-    // Use lname as father's name
-    const fatherName = resident.lname || 'Unknown';
     const gender = resident.sex === 'M' ? 'Male' : 'Female';
     const birthDateGC = resident.birthdate;
 
-    console.log('✅ Resident found:', fullName);
-    console.log('✅ Father name:', fatherName);
-    console.log('✅ Grandfather name:', grandfatherName);
-    console.log('✅ House number:', houseNumber);
-    console.log('✅ Phone:', primaryPhone);
-    console.log('✅ Marital status:', maritalStatus);
-    console.log('✅ Place of birth:', placeOfBirth);
+    console.log('✅ Resident found:', fullNameEn);
+    console.log('✅ Amharic name:', fullNameAm);
+    console.log('✅ Father name:', fatherNameEn);
+    console.log('✅ Emergency contact:', emergency_contact_name);
 
     await client.query('BEGIN');
     console.log('✅ Transaction started');
 
     // Generate ID number if not provided
-    let finalIdNumber = id_number;
+    let finalIdNumber = body.id_number;
     if (!finalIdNumber) {
       const year = new Date().getFullYear().toString().slice(-2);
       const countResult = await client.query(
@@ -126,7 +184,7 @@ export async function POST(request) {
     const birthDateEC = gregorianToEthiopian(birthDateGC);
 
     // Calculate issue and expiry dates
-    const issueDateGC = issue_date || new Date().toISOString().split('T')[0];
+    const issueDateGC = body.issue_date || new Date().toISOString().split('T')[0];
     const issueDateObj = new Date(issueDateGC);
     const expiryDateObj = new Date(issueDateObj);
     expiryDateObj.setFullYear(expiryDateObj.getFullYear() + 4);
@@ -142,8 +200,11 @@ export async function POST(request) {
         id_number, 
         resident_id, 
         full_name,
+        full_name_am,
         father_name,
+        father_name_am,
         grandfather_name,
+        grandfather_name_am,
         sex,
         birth_date_gc,
         birth_date_ec,
@@ -155,27 +216,44 @@ export async function POST(request) {
         phone_number,
         marital_status,
         place_of_birth,
+        emergency_contact_name,
+        emergency_relationship,
+        emergency_phone,
+        emergency_alt_phone,
+        emergency_address,
+        medical_notes,
+        photo_url,
         status, 
         created_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, 'active', NOW())
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, 'active', NOW())
       RETURNING id_card_id, id_number`,
       [
         finalIdNumber, 
         resident_id,
-        fullName,
-        fatherName,
-        grandfatherName,
+        fullNameEn,
+        fullNameAm || null,
+        fatherNameEn,
+        fatherNameAm || null,
+        grandfatherNameEn,
+        grandfatherNameAm || null,
         gender,
         birthDateGC,
-        birthDateEC.formattedDisplay.en,
+        birthDateEC?.formattedDisplay?.en || null,
         issueDateGC, 
-        issueDateEC.formattedDisplay.en,
+        issueDateEC?.formattedDisplay?.en || null,
         expiryDateGC, 
-        expiryDateEC.formattedDisplay.en,
+        expiryDateEC?.formattedDisplay?.en || null,
         houseNumber,
         primaryPhone,
         maritalStatus,
-        placeOfBirth
+        placeOfBirth,
+        emergency_contact_name || null,
+        emergency_relationship || null,
+        emergency_phone || null,
+        emergency_alt_phone || null,
+        emergency_address || null,
+        medical_notes || null,
+        photo_url || null
       ]
     );
 
@@ -183,71 +261,41 @@ export async function POST(request) {
     console.log('✅ ID card created with ID:', idCardId);
 
     // ============================================================
-    // ✅ CREATE SERVICE REQUEST FOR ID CARD ISSUANCE
+    // CREATE SERVICE REQUEST - ALWAYS CREATE NEW FOR EACH ID CARD
     // ============================================================
     let serviceRequestId = null;
     
-    // Get the service ID for "New ID Registration"
     const serviceResult = await client.query(
-      `SELECT service_id FROM service WHERE service_name = $1`,
-      ['New ID Registration']
+      `SELECT service_id FROM service WHERE service_name = $1 OR service_id = $2`,
+      ['New ID Registration', 4]
     );
     
     let serviceId = null;
     if (serviceResult.rows.length > 0) {
       serviceId = serviceResult.rows[0].service_id;
-      console.log('✅ Found service: New ID Registration with ID:', serviceId);
-    } else {
-      // Fallback: try to get by service_id = 4
-      const fallbackResult = await client.query(
-        `SELECT service_id FROM service WHERE service_id = $1`,
-        [4]
-      );
-      if (fallbackResult.rows.length > 0) {
-        serviceId = fallbackResult.rows[0].service_id;
-        console.log('✅ Using fallback service ID:', serviceId);
-      } else {
-        console.warn('⚠️ Service "New ID Registration" not found. Service request not created.');
-      }
+      console.log('✅ Found service for ID card issuance with ID:', serviceId);
     }
     
     if (serviceId) {
-      // Check if there's an existing pending request for this resident
-      const existingRequest = await client.query(
-        `SELECT request_id FROM service_request 
-         WHERE resident_id = $1 AND service_id = $2 AND status = 'pending'`,
-        [resident_id, serviceId]
+      // ALWAYS create a NEW service request for each ID issuance
+      const requestNumber = `SR-${Date.now()}-${resident_id}-${Math.floor(Math.random() * 1000)}`;
+      const newRequestResult = await client.query(
+        `INSERT INTO service_request (
+          request_number, service_id, resident_id, status, 
+          request_date, completed_date, notes
+        ) VALUES ($1, $2, $3, 'completed', NOW(), NOW(), $4)
+        RETURNING request_id`,
+        [
+          requestNumber,
+          serviceId,
+          resident_id,
+          `ID card issued: ${finalIdNumber} for resident: ${fullNameEn}`
+        ]
       );
-
-      if (existingRequest.rows.length > 0) {
-        // Update existing request to completed
-        await client.query(
-          `UPDATE service_request 
-           SET status = 'completed', completed_date = NOW()
-           WHERE request_id = $1`,
-          [existingRequest.rows[0].request_id]
-        );
-        serviceRequestId = existingRequest.rows[0].request_id;
-        console.log('✅ Updated existing service request to completed:', serviceRequestId);
-      } else {
-        // Create new service request
-        const requestNumber = `SR-${Date.now()}-${resident_id}`;
-        const newRequestResult = await client.query(
-          `INSERT INTO service_request (
-            request_number, service_id, resident_id, status, 
-            request_date, completed_date, notes
-          ) VALUES ($1, $2, $3, 'completed', NOW(), NOW(), $4)
-          RETURNING request_id`,
-          [
-            requestNumber,
-            serviceId,
-            resident_id,
-            `ID card issued: ${finalIdNumber} for resident: ${fullName}`
-          ]
-        );
-        serviceRequestId = newRequestResult.rows[0].request_id;
-        console.log('✅ Created new service request for ID card issuance:', requestNumber);
-      }
+      serviceRequestId = newRequestResult.rows[0].request_id;
+      console.log('✅ Created new service request for ID card issuance:', requestNumber);
+    } else {
+      console.warn('⚠️ No service found for ID card issuance, service request not created');
     }
 
     await client.query('COMMIT');
@@ -257,20 +305,30 @@ export async function POST(request) {
       success: true,
       id_card_id: idCardId,
       id_number: finalIdNumber,
-      full_name: fullName,
-      father_name: fatherName,
-      grandfather_name: grandfatherName,
+      full_name: fullNameEn,
+      full_name_am: fullNameAm,
+      father_name: fatherNameEn,
+      father_name_am: fatherNameAm,
+      grandfather_name: grandfatherNameEn,
+      grandfather_name_am: grandfatherNameAm,
       house_number: houseNumber,
       phone_number: primaryPhone,
       marital_status: maritalStatus,
       place_of_birth: placeOfBirth,
       gender: gender,
       birth_date_gc: birthDateGC,
-      birth_date_ec: birthDateEC.formattedDisplay.en,
+      birth_date_ec: birthDateEC?.formattedDisplay?.en,
       issue_date_gc: issueDateGC,
-      issue_date_ec: issueDateEC.formattedDisplay.en,
+      issue_date_ec: issueDateEC?.formattedDisplay?.en,
       expiry_date_gc: expiryDateGC,
-      expiry_date_ec: expiryDateEC.formattedDisplay.en,
+      expiry_date_ec: expiryDateEC?.formattedDisplay?.en,
+      emergency_contact_name: emergency_contact_name,
+      emergency_relationship: emergency_relationship,
+      emergency_phone: emergency_phone,
+      emergency_alt_phone: emergency_alt_phone,
+      emergency_address: emergency_address,
+      medical_notes: medical_notes,
+      photo_url: photo_url,
       service_request_id: serviceRequestId,
       message: 'ID card issued successfully'
     });

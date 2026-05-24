@@ -82,9 +82,11 @@ export default function Sidebar({ role }) {
       { nameKey: 'sidebar.addResidents', path: "/dashboard/manager/add-resident", icon: FaUserPlus },
       { nameKey: 'sidebar.viewResidents', path: "/dashboard/manager/residents", icon: FaUserFriends },
       { nameKey: 'sidebar.socialCourt', path: "/dashboard/manager/social-court", icon: FaGavel },
-      { nameKey: 'sidebar.transferResident', path: "/dashboard/manager/transfer", icon: FaExchangeAlt },  // ✅ Added Transfer menu item
-      { nameKey: 'sidebar.transferredResidents', path: "/dashboard/manager/transferred-residents", icon: FaExchangeAlt },
-      { nameKey: 'sidebar.serviceAnalytics', path: "/dashboard/manager/service-analytics", icon: FaChartLine },
+      // In your sidebar.js, add to Kebele Manager menu:
+      { nameKey: 'sidebar.lostId', path: "/dashboard/manager/lost-id", icon: FaIdCard },
+      { nameKey: 'sidebar.Transfer Resident', path: "/dashboard/manager/transfer", icon: FaExchangeAlt },  // ✅ Added Transfer menu item
+      { nameKey: 'sidebar.Transferred Residents', path: "/dashboard/manager/transferred-residents", icon: FaExchangeAlt },
+      // { nameKey: 'sidebar.serviceAnalytics', path: "/dashboard/manager/service-analytics", icon: FaChartLine },
       // { nameKey: 'sidebar.postNews', path: "/dashboard/manager/news", icon: FaNewspaper },
     ],
 
@@ -97,7 +99,7 @@ export default function Sidebar({ role }) {
       { nameKey: 'sidebar.deathCertificate', path: "/dashboard/officer/death-certificate", icon: FaSkull },
       { nameKey: 'sidebar.marriageCertificate', path: "/dashboard/officer/marriage-certificate", icon: FaRing },
       { nameKey: 'sidebar.viewResidents', path: "/dashboard/officer/residents", icon: FaUserFriends },
-      { nameKey: 'sidebar.reports', path: "/dashboard/officer/reports", icon: FaChartBar },
+      // { nameKey: 'sidebar.reports', path: "/dashboard/officer/reports", icon: FaChartBar },
     ],
 
     "Resident": [

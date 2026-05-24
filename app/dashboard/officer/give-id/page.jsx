@@ -9,9 +9,9 @@ import {
   FaIdCard, FaUser, FaCalendarAlt, FaMapMarkerAlt,
   FaPhone, FaHome, FaSave, FaSpinner, FaPrint,
   FaCheckCircle, FaTimesCircle, FaCamera, FaTrash,
-  FaUpload, FaUserPlus, FaHeartbeat, FaPhoneAlt
+  FaUpload, FaUserPlus, FaHeartbeat, FaPhoneAlt, FaLanguage
 } from 'react-icons/fa';
-import { gregorianToEthiopian, calculateExpiryDate, getCurrentEthiopianDate, ethiopianToGregorian } from '@/utils/calendar';
+import { gregorianToEthiopian, getCurrentEthiopianDate, ethiopianToGregorian } from '@/utils/calendar';
 
 function GiveIDPage() {
   const { t, locale } = useTranslation();
@@ -24,9 +24,13 @@ function GiveIDPage() {
   const [capturedPhoto, setCapturedPhoto] = useState(null);
   const [showCamera, setShowCamera] = useState(false);
   const [cameraError, setCameraError] = useState(null);
+  const [showAmharicInput, setShowAmharicInput] = useState(false);
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const [stream, setStream] = useState(null);
+  const [hasActiveId, setHasActiveId] = useState(false);
+  const [existingIdNumber, setExistingIdNumber] = useState(null);
+  const [checkingId, setCheckingId] = useState(false);
   
   const [formData, setFormData] = useState({
     resident_id: '',
@@ -53,6 +57,44 @@ function GiveIDPage() {
     photo_url: '',
     issue_number: 1
   });
+
+  // Fetch phone numbers for resident
+  const fetchPhoneNumbers = async (residentId) => {
+    try {
+      const response = await fetch(`/api/residents/${residentId}/contacts`);
+      const data = await response.json();
+      if (data.success && data.phones && data.phones.length > 0) {
+        setFormData(prev => ({ ...prev, phone: data.phones[0] }));
+      }
+    } catch (error) {
+      console.error('Error fetching phone numbers:', error);
+    }
+  };
+
+  // Check if resident already has an active ID card
+  const checkExistingIdCard = async (residentId) => {
+    setCheckingId(true);
+    try {
+      const response = await fetch(`/api/id-card/check?resident_id=${residentId}`);
+      const data = await response.json();
+      if (data.has_active_id) {
+        setHasActiveId(true);
+        setExistingIdNumber(data.id_number);
+        setError(`⚠️ This resident already has an active ID card: ${data.id_number}. Cannot issue another ID.`);
+        return true;
+      } else {
+        setHasActiveId(false);
+        setExistingIdNumber(null);
+        setError(null);
+        return false;
+      }
+    } catch (error) {
+      console.error('Error checking ID status:', error);
+      return false;
+    } finally {
+      setCheckingId(false);
+    }
+  };
 
   // Compress photo to reduce size
   const compressPhoto = (dataUrl, maxWidth = 200, quality = 0.6) => {
@@ -215,24 +257,63 @@ function GiveIDPage() {
     setFormData(prev => ({ ...prev, photo_url: '' }));
   };
 
-  const handleSelectResident = (resident) => {
+  const handleSelectResident = async (resident) => {
     setSelectedResident(resident);
+    
+    // First check if resident already has an active ID card
+    const hasId = await checkExistingIdCard(resident.resident_id);
+    
+    if (hasId) {
+      // Don't populate form data if they already have an ID
+      return;
+    }
+    
+    // Build English names
+    const fullNameEn = `${resident.fname || ''} ${resident.lname || ''} ${resident.grandfather_name || ''}`.trim();
+    const fatherNameEn = resident.lname || '';
+    const grandfatherNameEn = resident.grandfather_name || '';
+    
+    // Build Amharic names from resident data if available
+    const fullNameAm = resident.fname_am && resident.lname_am 
+      ? `${resident.fname_am} ${resident.lname_am} ${resident.grandfather_name_am || ''}`.trim()
+      : '';
+    const fatherNameAm = resident.lname_am || '';
+    const grandfatherNameAm = resident.grandfather_name_am || '';
+    
+    // Convert birth date to Ethiopian calendar if available
+    let birthDateEc = '';
+    if (resident.birthdate) {
+      const ecDate = gregorianToEthiopian(resident.birthdate);
+      if (ecDate) {
+        birthDateEc = ecDate.formattedEc;
+      }
+    }
+    
     setFormData(prev => ({
       ...prev,
       resident_id: resident.resident_id,
-      full_name: `${resident.fname} ${resident.lname}`,
-      full_name_am: resident.fname_am ? `${resident.fname_am} ${resident.lname_am}` : '',
-      father_name: resident.lname || '',
-      father_name_am: resident.lname_am || '',
-      grandfather_name: resident.grandfather_name || '',
-      grandfather_name_am: '',
-      sex: resident.sex === 'M' ? 'Male' : 'Female',
+      full_name: fullNameEn,
+      full_name_am: fullNameAm,
+      father_name: fatherNameEn,
+      father_name_am: fatherNameAm,
+      grandfather_name: grandfatherNameEn,
+      grandfather_name_am: grandfatherNameAm,
+      sex: resident.sex === 'M' ? 'Male' : resident.sex === 'F' ? 'Female' : '',
       birth_date_gc: resident.birthdate || '',
-      birth_date_ec: resident.birthdate ? gregorianToEthiopian(resident.birthdate).formattedEc : '',
+      birth_date_ec: birthDateEc,
       place_of_birth: resident.place_of_birth || '',
-      residence: resident.house_id || '',
-      house_number: resident.house_id || ''
+      house_number: resident.house_id || '',
+      marital_status: resident.marital_status || '',
+      phone: resident.phone || ''
     }));
+    
+    // Show Amharic input if no Amharic names in database
+    setShowAmharicInput(!fullNameAm);
+    
+    // Fetch phone numbers if needed
+    if (resident.resident_id) {
+      fetchPhoneNumbers(resident.resident_id);
+    }
   };
 
   const handleClearResident = () => {
@@ -263,6 +344,9 @@ function GiveIDPage() {
       issue_number: 1
     });
     setCapturedPhoto(null);
+    setShowAmharicInput(false);
+    setHasActiveId(false);
+    setExistingIdNumber(null);
   };
 
   // Handle birth date change for both calendars
@@ -291,52 +375,88 @@ function GiveIDPage() {
   };
 
   const handleSubmit = async (e) => {
-  e.preventDefault();
-  setLoading(true);
-  setError(null);
-  
-  console.log('Submitting ID card with photo:', !!formData.photo_url);
-  
-  try {
-    const response = await fetch('/api/id-card/issue', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(formData)
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    
+    console.log('Submitting ID card with data:', {
+      resident_id: formData.resident_id,
+      full_name_am: formData.full_name_am,
+      father_name_am: formData.father_name_am,
+      grandfather_name_am: formData.grandfather_name_am,
+      emergency_contact_name: formData.emergency_contact_name,
+      has_photo: !!formData.photo_url
     });
     
-    const data = await response.json();
-    console.log('API Response:', data); // 👈 ADD THIS LINE
-    
-    if (data.success) {
-      console.log('ID Card Created - ID:', data.id_card_id); // 👈 ADD THIS LINE
-      setGeneratedId(data.id_card_id);
-      setShowPreview(true);
-    } else {
-      setError(data.error || 'Failed to issue ID card');
+    try {
+      const response = await fetch('/api/id-card/issue', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          resident_id: formData.resident_id,
+          full_name_am: formData.full_name_am,
+          father_name_am: formData.father_name_am,
+          grandfather_name_am: formData.grandfather_name_am,
+          emergency_contact_name: formData.emergency_contact_name,
+          emergency_relationship: formData.emergency_relationship,
+          emergency_phone: formData.emergency_phone,
+          emergency_alt_phone: formData.emergency_alt_phone,
+          emergency_address: formData.emergency_address,
+          medical_notes: formData.medical_notes,
+          photo_url: formData.photo_url,
+          phone: formData.phone,
+          place_of_birth: formData.place_of_birth,
+          house_number: formData.house_number,
+          marital_status: formData.marital_status,
+          email: formData.email
+        })
+      });
+      
+      const data = await response.json();
+      console.log('API Response:', data);
+      
+      if (response.status === 409) {
+        setError(
+          `⚠️ ${data.message}\n\n` +
+          `Existing ID: ${data.existing_id_number}\n` +
+          `Issue Date: ${data.issue_date}\n` +
+          `Expiry Date: ${data.expiry_date}\n\n` +
+          `The resident already has an active ID card. Please renew or replace the existing card.`
+        );
+        setHasActiveId(true);
+        setExistingIdNumber(data.existing_id_number);
+      } else if (data.success) {
+        setGeneratedId(data.id_card_id);
+        setShowPreview(true);
+      } else {
+        setError(data.message || 'Failed to issue ID card');
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      setError('Network error. Please try again.');
+    } finally {
+      setLoading(false);
     }
-  } catch (error) {
-    console.error('Error:', error);
-    setError('Network error. Please try again.');
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   const handlePrint = () => {
-  console.log('Printing ID card with ID:', generatedId); // 👈 ADD THIS LINE
-  if (generatedId) {
-    window.open(`/api/id-card/print/${generatedId}`, '_blank');
-  } else {
-    console.error('No ID card ID available for printing');
-    alert('Please wait for ID card to be generated first');
-  }
-};
+    console.log('Printing ID card with ID:', generatedId);
+    if (generatedId) {
+      window.open(`/api/id-card/print/${generatedId}`, '_blank');
+    } else {
+      console.error('No ID card ID available for printing');
+      alert('Please wait for ID card to be generated first');
+    }
+  };
 
   const handleNew = () => {
     setShowPreview(false);
     setGeneratedId(null);
     setSelectedResident(null);
     setCapturedPhoto(null);
+    setShowAmharicInput(false);
+    setHasActiveId(false);
+    setExistingIdNumber(null);
     handleClearResident();
   };
 
@@ -344,18 +464,30 @@ function GiveIDPage() {
 
   return (
     <Layout role="Record Officer">
+      <style jsx global>{`
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Ethiopic:wght@400;500;600;700&display=swap');
+        .font-ethiopic {
+          font-family: 'Noto Sans Ethiopic', 'Nyala', 'Abyssinica SIL', sans-serif;
+        }
+      `}</style>
+
       <div className="max-w-5xl mx-auto p-6">
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
             <FaIdCard className="text-blue-600" /> 
-            Issue New ID Card
+            {locale === 'am' ? 'አዲስ መታወቂያ ካርድ ማውጣት' : 'Issue New ID Card'}
           </h1>
-          <p className="text-gray-500 mt-1">Issue a new resident identification card with photo and emergency contacts</p>
+          <p className="text-gray-500 mt-1">
+            {locale === 'am' ? 'ከፎቶ እና የአደጋ ጊዜ እውቂያ ጋር አዲስ የነዋሪ መታወቂያ ካርድ ያውጡ' : 'Issue a new resident identification card with photo and emergency contacts'}
+          </p>
         </div>
 
         {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-red-700">
-            <FaTimesCircle /> {error}
+          <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+            <div className="flex items-start gap-2 text-red-700">
+              <FaTimesCircle className="mt-0.5 flex-shrink-0" />
+              <div className="whitespace-pre-line text-sm">{error}</div>
+            </div>
           </div>
         )}
 
@@ -368,18 +500,61 @@ function GiveIDPage() {
               onClear={handleClearResident}
             />
 
+            {/* Selected Resident Status Indicator */}
             {selectedResident && (
+              <div className={`rounded-lg p-4 mb-6 flex items-center justify-between ${hasActiveId ? 'bg-red-50 border border-red-200' : 'bg-green-50 border border-green-200'}`}>
+                <div>
+                  <p className={`font-semibold ${hasActiveId ? 'text-red-800' : 'text-green-800'}`}>
+                    {locale === 'am' ? 'የተመረጠ ነዋሪ' : 'Selected Resident'}
+                  </p>
+                  <p className="text-sm text-gray-700">
+                    {selectedResident.fname} {selectedResident.lname} - {locale === 'am' ? 'ቤት ቁጥር' : 'House'}: {selectedResident.house_id}
+                  </p>
+                  {hasActiveId && (
+                    <p className="text-sm text-red-600 mt-1 flex items-center gap-1">
+                      <FaTimesCircle className="text-xs" />
+                      {locale === 'am' 
+                        ? `ይህ ነዋሪ ንቁ መታወቂያ ካርድ አለው: ${existingIdNumber}` 
+                        : `This resident already has an active ID card: ${existingIdNumber}`}
+                    </p>
+                  )}
+                  {checkingId && (
+                    <p className="text-sm text-yellow-600 mt-1 flex items-center gap-1">
+                      <FaSpinner className="animate-spin text-xs" />
+                      {locale === 'am' ? 'በመፈተሽ ላይ...' : 'Checking ID status...'}
+                    </p>
+                  )}
+                </div>
+                <button
+                  onClick={() => {
+                    setSelectedResident(null);
+                    setHasActiveId(false);
+                    setExistingIdNumber(null);
+                    handleClearResident();
+                  }}
+                  className="text-blue-600 hover:text-blue-700 text-sm flex items-center gap-1"
+                >
+                  <FaUserPlus className="text-xs" />
+                  {locale === 'am' ? 'ለውጥ' : 'Change'}
+                </button>
+              </div>
+            )}
+
+            {/* Form - Only show if resident has NO active ID */}
+            {selectedResident && !hasActiveId && !checkingId && (
               <form onSubmit={handleSubmit} className="space-y-6 mt-6">
                 {/* Personal Information */}
                 <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
                   <h2 className="font-semibold text-gray-800 mb-4 flex items-center gap-2 border-b pb-2">
                     <FaUser className="text-blue-600" />
-                    Personal Information
+                    {locale === 'am' ? 'የግል መረጃ' : 'Personal Information'}
                   </h2>
                   
                   {/* Photo Capture/Upload Section */}
                   <div className="mb-6 p-4 bg-gray-50 rounded-lg">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Photo</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      {locale === 'am' ? 'ፎቶ' : 'Photo'}
+                    </label>
                     <div className="flex flex-col md:flex-row items-start gap-4">
                       <div className="w-32 h-36 bg-gray-200 rounded-lg border-2 border-dashed border-gray-400 flex items-center justify-center overflow-hidden">
                         {capturedPhoto ? (
@@ -387,7 +562,7 @@ function GiveIDPage() {
                         ) : (
                           <div className="text-center text-gray-400">
                             <FaCamera className="text-3xl mx-auto mb-1" />
-                            <span className="text-xs">No Photo</span>
+                            <span className="text-xs">{locale === 'am' ? 'ምንም ፎቶ የለም' : 'No Photo'}</span>
                           </div>
                         )}
                       </div>
@@ -400,10 +575,10 @@ function GiveIDPage() {
                                 onClick={startCamera}
                                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
                               >
-                                <FaCamera /> Take Photo
+                                <FaCamera /> {locale === 'am' ? 'ፎቶ አንሳ' : 'Take Photo'}
                               </button>
                               <label className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 cursor-pointer flex items-center gap-2">
-                                <FaUpload /> Upload Photo
+                                <FaUpload /> {locale === 'am' ? 'ፎቶ ጫን' : 'Upload Photo'}
                                 <input
                                   type="file"
                                   accept="image/*"
@@ -417,7 +592,7 @@ function GiveIDPage() {
                                   onClick={removePhoto}
                                   className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center gap-2"
                                 >
-                                  <FaTrash /> Remove
+                                  <FaTrash /> {locale === 'am' ? 'አስወግድ' : 'Remove'}
                                 </button>
                               )}
                             </div>
@@ -440,14 +615,14 @@ function GiveIDPage() {
                                 onClick={capturePhoto}
                                 className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
                               >
-                                Capture
+                                {locale === 'am' ? 'አንሳ' : 'Capture'}
                               </button>
                               <button
                                 type="button"
                                 onClick={stopCamera}
                                 className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
                               >
-                                Cancel
+                                {locale === 'am' ? 'ሰርዝ' : 'Cancel'}
                               </button>
                             </div>
                           </div>
@@ -458,7 +633,9 @@ function GiveIDPage() {
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Full Name *</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        {locale === 'am' ? 'ሙሉ ስም' : 'Full Name'} *
+                      </label>
                       <input
                         type="text"
                         value={formData.full_name}
@@ -468,16 +645,21 @@ function GiveIDPage() {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Full Name (Amharic)</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        {locale === 'am' ? 'ሙሉ ስም (አማርኛ)' : 'Full Name (Amharic)'}
+                      </label>
                       <input
                         type="text"
                         value={formData.full_name_am}
                         onChange={(e) => setFormData({...formData, full_name_am: e.target.value})}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg font-ethiopian"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg font-ethiopic"
+                        placeholder={locale === 'am' ? 'ሙሉ ስም በአማርኛ' : 'Full name in Amharic'}
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Father's Name *</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        {locale === 'am' ? 'የአባት ስም' : "Father's Name"} *
+                      </label>
                       <input
                         type="text"
                         value={formData.father_name}
@@ -487,7 +669,74 @@ function GiveIDPage() {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        {locale === 'am' ? 'የአባት ስም (አማርኛ)' : "Father's Name (Amharic)"}
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.father_name_am}
+                        onChange={(e) => setFormData({...formData, father_name_am: e.target.value})}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg font-ethiopic"
+                        placeholder={locale === 'am' ? 'የአባት ስም በአማርኛ' : "Father's name in Amharic"}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Toggle for Amharic Grandfather Name */}
+                  <div className="mt-2">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={showAmharicInput}
+                        onChange={(e) => setShowAmharicInput(e.target.checked)}
+                        className="w-4 h-4 text-blue-600 rounded"
+                      />
+                      <span className="text-sm text-gray-600">
+                        {showAmharicInput 
+                          ? (locale === 'am' ? 'የአያት ስም ደብቅ' : 'Hide Grandfather Name')
+                          : (locale === 'am' ? 'የአያት ስም አሳይ' : 'Show Grandfather Name')}
+                      </span>
+                    </label>
+                  </div>
+
+                  {showAmharicInput && (
+                    <div className="mt-4 p-4 bg-amber-50 rounded-lg border border-amber-200">
+                      <h3 className="text-sm font-semibold text-amber-800 mb-3 flex items-center gap-2">
+                        <FaLanguage /> {locale === 'am' ? 'የአያት ስም በአማርኛ' : "Grandfather's Name (Amharic)"}
+                      </h3>
+                      <div>
+                        <input
+                          type="text"
+                          value={formData.grandfather_name_am}
+                          onChange={(e) => setFormData({...formData, grandfather_name_am: e.target.value})}
+                          className="w-full px-3 py-2 border border-amber-300 rounded-lg font-ethiopic"
+                          placeholder={locale === 'am' ? 'የአያት ስም በአማርኛ' : "Grandfather's name in Amharic"}
+                        />
+                        <p className="text-xs text-amber-600 mt-1">
+                          💡 {locale === 'am' 
+                            ? 'የነዋሪው የአያት ስም በዳታቤዝ ውስጥ ከሌለ እዚህ ማስገባት ይችላሉ' 
+                            : 'If the resident\'s grandfather name is not in the database, you can enter it here'}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        {locale === 'am' ? 'የአያት ስም' : "Grandfather's Name"}
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.grandfather_name}
+                        onChange={(e) => setFormData({...formData, grandfather_name: e.target.value})}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        {locale === 'am' ? 'ስልክ ቁጥር' : 'Phone Number'}
+                      </label>
                       <input
                         type="tel"
                         value={formData.phone}
@@ -496,7 +745,9 @@ function GiveIDPage() {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        {locale === 'am' ? 'ኢሜይል' : 'Email Address'}
+                      </label>
                       <input
                         type="email"
                         value={formData.email}
@@ -505,7 +756,9 @@ function GiveIDPage() {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">House Number</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        {locale === 'am' ? 'ቤት ቁጥር' : 'House Number'}
+                      </label>
                       <input
                         type="text"
                         value={formData.house_number}
@@ -514,7 +767,9 @@ function GiveIDPage() {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Place of Birth</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        {locale === 'am' ? 'የትውልድ ቦታ' : 'Place of Birth'}
+                      </label>
                       <input
                         type="text"
                         value={formData.place_of_birth}
@@ -523,16 +778,18 @@ function GiveIDPage() {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Sex *</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        {locale === 'am' ? 'ጾታ' : 'Sex'} *
+                      </label>
                       <select
                         value={formData.sex}
                         onChange={(e) => setFormData({...formData, sex: e.target.value})}
                         required
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                       >
-                        <option value="">Select</option>
-                        <option value="Male">Male</option>
-                        <option value="Female">Female</option>
+                        <option value="">{locale === 'am' ? 'ይምረጡ' : 'Select'}</option>
+                        <option value="Male">{locale === 'am' ? 'ወንድ' : 'Male'}</option>
+                        <option value="Female">{locale === 'am' ? 'ሴት' : 'Female'}</option>
                       </select>
                     </div>
                   </div>
@@ -542,7 +799,7 @@ function GiveIDPage() {
                 <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
                   <h2 className="font-semibold text-gray-800 mb-4 flex items-center gap-2 border-b pb-2">
                     <FaCalendarAlt className="text-green-600" />
-                    Birth Information
+                    {locale === 'am' ? 'የልደት መረጃ' : 'Birth Information'}
                   </h2>
                   
                   <div className="flex gap-2 mb-4">
@@ -552,7 +809,7 @@ function GiveIDPage() {
                       className={`px-3 py-1 rounded-lg text-sm ${birthCalendar === 'gc' ? 'bg-blue-600 text-white' : 'bg-gray-100'}`}
                     >
                       Gregorian Calendar
-    </button>
+                    </button>
                     <button
                       type="button"
                       onClick={() => setBirthCalendar('ec')}
@@ -560,14 +817,18 @@ function GiveIDPage() {
                     >
                       Ethiopian Calendar
                     </button>
-                    <span className="text-xs text-gray-400 ml-auto">Today (EC): {currentEcDate.formattedDisplay.en}</span>
+                    <span className="text-xs text-gray-400 ml-auto">
+                      {locale === 'am' ? 'ዛሬ (ኢትዮጵያ)' : 'Today (EC)'}: {currentEcDate.formattedDisplay.en}
+                    </span>
                   </div>
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {birthCalendar === 'gc' ? (
                       <>
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Birth Date (GC) *</label>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            {locale === 'am' ? 'የልደት ቀን (ግሪጎሪያን)' : 'Birth Date (GC)'} *
+                          </label>
                           <input
                             type="date"
                             value={formData.birth_date_gc}
@@ -575,43 +836,49 @@ function GiveIDPage() {
                             required
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                           />
-                          <p className="text-xs text-gray-400 mt-1">Format: Year-Month-Day</p>
+                          <p className="text-xs text-gray-400 mt-1">{locale === 'am' ? 'ቅርጸት: ዓመት-ወር-ቀን' : 'Format: Year-Month-Day'}</p>
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Birth Date (EC)</label>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            {locale === 'am' ? 'የልደት ቀን (ኢትዮጵያ)' : 'Birth Date (EC)'}
+                          </label>
                           <input
                             type="text"
                             value={formData.birth_date_ec}
                             readOnly
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50"
-                            placeholder="Auto-converted"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 font-ethiopic"
+                            placeholder={locale === 'am' ? 'በራስ ይሞላል' : 'Auto-converted'}
                           />
-                          <p className="text-xs text-blue-500 mt-1">🔄 Auto-converted from Gregorian</p>
+                          <p className="text-xs text-blue-500 mt-1">🔄 {locale === 'am' ? 'ከጎርጎርያን ቀን በራስ ይቀየራል' : 'Auto-converted from Gregorian'}</p>
                         </div>
                       </>
                     ) : (
                       <>
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Birth Date (EC) *</label>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            {locale === 'am' ? 'የልደት ቀን (ኢትዮጵያ)' : 'Birth Date (EC)'} *
+                          </label>
                           <input
                             type="text"
                             value={formData.birth_date_ec}
                             onChange={(e) => handleBirthDateChange(e.target.value, 'ec')}
-                            placeholder="YYYY-MM-DD (e.g., 2016-04-12)"
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                            placeholder={locale === 'am' ? 'YYYY-MM-DD (ለምሳሌ: 2016-04-12)' : 'YYYY-MM-DD (e.g., 2016-04-12)'}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg font-ethiopic"
                           />
-                          <p className="text-xs text-gray-400 mt-1">Format: Year-Month-Day (e.g., 2016-04-12)</p>
+                          <p className="text-xs text-gray-400 mt-1">{locale === 'am' ? 'ቅርጸት: ዓመት-ወር-ቀን' : 'Format: Year-Month-Day'}</p>
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Birth Date (GC)</label>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            {locale === 'am' ? 'የልደት ቀን (ግሪጎሪያን)' : 'Birth Date (GC)'}
+                          </label>
                           <input
                             type="text"
                             value={formData.birth_date_gc}
                             readOnly
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50"
-                            placeholder="Auto-converted"
+                            placeholder={locale === 'am' ? 'በራስ ይሞላል' : 'Auto-converted'}
                           />
-                          <p className="text-xs text-blue-500 mt-1">🔄 Auto-converted from Ethiopian date</p>
+                          <p className="text-xs text-blue-500 mt-1">🔄 {locale === 'am' ? 'ከኢትዮጵያ ቀን በራስ ይቀየራል' : 'Auto-converted from Ethiopian'}</p>
                         </div>
                       </>
                     )}
@@ -622,12 +889,14 @@ function GiveIDPage() {
                 <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
                   <h2 className="font-semibold text-gray-800 mb-4 flex items-center gap-2 border-b pb-2">
                     <FaHeartbeat className="text-red-600" />
-                    Emergency Contact Information
+                    {locale === 'am' ? 'የአደጋ ጊዜ እውቂያ' : 'Emergency Contact Information'}
                   </h2>
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Emergency Contact Name</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        {locale === 'am' ? 'የአደጋ ጊዜ እውቂያ ስም' : 'Emergency Contact Name'}
+                      </label>
                       <input
                         type="text"
                         value={formData.emergency_contact_name}
@@ -636,7 +905,9 @@ function GiveIDPage() {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Relationship</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        {locale === 'am' ? 'ዝምድና' : 'Relationship'}
+                      </label>
                       <input
                         type="text"
                         value={formData.emergency_relationship}
@@ -645,7 +916,9 @@ function GiveIDPage() {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Emergency Phone Number</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        {locale === 'am' ? 'የአደጋ ጊዜ ስልክ ቁጥር' : 'Emergency Phone Number'}
+                      </label>
                       <input
                         type="tel"
                         value={formData.emergency_phone}
@@ -654,7 +927,9 @@ function GiveIDPage() {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Alternate Phone Number</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        {locale === 'am' ? 'ተለዋጭ ስልክ ቁጥር' : 'Alternate Phone Number'}
+                      </label>
                       <input
                         type="tel"
                         value={formData.emergency_alt_phone}
@@ -663,7 +938,9 @@ function GiveIDPage() {
                       />
                     </div>
                     <div className="md:col-span-2">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Emergency Address</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        {locale === 'am' ? 'የአደጋ ጊዜ አድራሻ' : 'Emergency Address'}
+                      </label>
                       <input
                         type="text"
                         value={formData.emergency_address}
@@ -672,12 +949,15 @@ function GiveIDPage() {
                       />
                     </div>
                     <div className="md:col-span-2">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Medical Notes (Allergies, Conditions, etc.)</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        {locale === 'am' ? 'የሕክምና ማስታወሻ (አለርጂዎች፣ ሁኔታዎች፣ ወዘተ)' : 'Medical Notes (Allergies, Conditions, etc.)'}
+                      </label>
                       <textarea
                         value={formData.medical_notes}
                         onChange={(e) => setFormData({...formData, medical_notes: e.target.value})}
                         rows="2"
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg resize-none"
+                        placeholder={locale === 'am' ? 'ማስታወሻ...' : 'Notes...'}
                       />
                     </div>
                   </div>
@@ -690,28 +970,63 @@ function GiveIDPage() {
                     onClick={handleNew}
                     className="px-6 py-3 bg-gray-300 hover:bg-gray-400 text-gray-800 rounded-lg transition"
                   >
-                    Cancel
+                    {locale === 'am' ? 'ሰርዝ' : 'Cancel'}
                   </button>
                   <button
                     type="submit"
-                    disabled={loading}
-                    className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg transition flex items-center gap-2 disabled:opacity-50"
+                    disabled={loading || hasActiveId || checkingId}
+                    className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg transition flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {loading ? <FaSpinner className="animate-spin" /> : <FaSave />}
-                    {loading ? 'Processing...' : 'Issue ID Card'}
+                    {loading 
+                      ? (locale === 'am' ? 'በሂደት ላይ...' : 'Processing...')
+                      : (locale === 'am' ? 'ካርድ አውጣ' : 'Issue ID Card')
+                    }
                   </button>
                 </div>
               </form>
+            )}
+
+            {/* Message when resident has active ID */}
+            {selectedResident && hasActiveId && !checkingId && (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 text-center mt-6">
+                <FaTimesCircle className="text-yellow-600 text-4xl mx-auto mb-3" />
+                <p className="text-yellow-800 font-medium">
+                  {locale === 'am' 
+                    ? 'ይህ ነዋሪ ቀድሞ ንቁ መታወቂያ ካርድ አለው' 
+                    : 'This resident already has an active ID card'}
+                </p>
+                <p className="text-yellow-700 text-sm mt-1">
+                  {locale === 'am' 
+                    ? `ካርድ ቁጥር: ${existingIdNumber}` 
+                    : `ID Number: ${existingIdNumber}`}
+                </p>
+                <button
+                  onClick={() => {
+                    setSelectedResident(null);
+                    setHasActiveId(false);
+                    setExistingIdNumber(null);
+                    handleClearResident();
+                  }}
+                  className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
+                  {locale === 'am' ? 'ሌላ ነዋሪ ፈልግ' : 'Search Another Resident'}
+                </button>
+              </div>
             )}
           </>
         ) : (
           <div className="space-y-4">
             <div className="bg-green-50 border border-green-200 rounded-lg p-6 text-center">
               <FaCheckCircle className="text-green-600 text-5xl mx-auto mb-4" />
-              <h2 className="text-xl font-bold text-green-800 mb-2">ID Card Issued Successfully!</h2>
-              <p className="text-green-700 mb-4">The ID card has been generated and is ready for printing</p>
+              <h2 className="text-xl font-bold text-green-800 mb-2">
+                {locale === 'am' ? 'ካርድ በተሳካ ሁኔታ ተዘጋጅቷል' : 'ID Card Issued Successfully!'}
+              </h2>
+              <p className="text-green-700 mb-4">
+                {locale === 'am' ? 'ካርዱ ተዘጋጅቷል እና ለማተም ዝግጁ ነው' : 'The ID card has been generated and is ready for printing'}
+              </p>
               <div className="bg-white rounded-lg p-4 inline-block mx-auto">
-                <p className="text-sm text-gray-500">ID Number</p>
+                <p className="text-sm text-gray-500">{locale === 'am' ? 'የካርድ ቁጥር' : 'ID Number'}</p>
                 <p className="text-lg font-bold text-blue-600 font-mono">{generatedId}</p>
               </div>
               <div className="flex gap-3 justify-center mt-6">
@@ -719,13 +1034,13 @@ function GiveIDPage() {
                   onClick={handlePrint}
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
                 >
-                  <FaPrint /> Print ID Card
+                  <FaPrint /> {locale === 'am' ? 'ካርድ አትም' : 'Print ID Card'}
                 </button>
                 <button
                   onClick={handleNew}
                   className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
                 >
-                  Issue Another ID
+                  {locale === 'am' ? 'ሌላ ካርድ አውጣ' : 'Issue Another ID'}
                 </button>
               </div>
             </div>

@@ -41,11 +41,12 @@ export async function POST(request) {
       }
     }
     
-    // Get the main resident's information
+    // Get the main resident's information - FIXED: removed mname references
     const mainResident = await client.query(
-      `SELECT resident_id, house_id, fname, lname, fname_am, lname_am,
-              COALESCE(fname, '') || ' ' || COALESCE(mname, '') || ' ' || COALESCE(lname, '') as full_name,
-              COALESCE(fname_am, '') || ' ' || COALESCE(mname_am, '') || ' ' || COALESCE(lname_am, '') as full_name_am
+      `SELECT resident_id, house_id, fname, lname, grandfather_name,
+              fname_am, lname_am, grandfather_name_am,
+              COALESCE(fname, '') || ' ' || COALESCE(lname, '') || ' ' || COALESCE(grandfather_name, '') as full_name,
+              COALESCE(fname_am, '') || ' ' || COALESCE(lname_am, '') || ' ' || COALESCE(grandfather_name_am, '') as full_name_am
        FROM resident r
        WHERE resident_id = $1`,
       [body.resident_id]
@@ -169,15 +170,12 @@ export async function POST(request) {
         const r = resident.rows[0];
         const isMain = (residentId === parseInt(body.resident_id));
         
-        // Determine the correct relationship to display
         let relationship = r.relationship_display || 'Family Member';
         
-        // If this is the selected resident and they are NOT the head, don't mark as Head
         if (isMain && !isSelectedResidentHead) {
           relationship = 'Resident (Family Member)';
         }
         
-        // If this is the actual head of household transferring
         if (residentId === actualHeadId) {
           relationship = 'Head of Household';
         }
@@ -255,7 +253,6 @@ export async function POST(request) {
     } else {
       // If the head of household transferred, assign a new head
       if (actualHeadId && transferringResidentIds.includes(actualHeadId)) {
-        // Find the oldest remaining resident to be new head
         const newHead = await client.query(
           `SELECT resident_id, fname, lname
            FROM resident 
@@ -295,7 +292,7 @@ export async function POST(request) {
     // Create transfer certificate
     const certificateNumber = `TRC-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
     
-    // In the certificate data creation - include both names
+    // In the transfer API, when creating certificateData
     const certificateData = {
       transfer_number: transferNumber,
       transfer_type: body.transfer_type,
@@ -303,7 +300,7 @@ export async function POST(request) {
       transfer_date: transfer.transfer_date,
       reason: body.reason,
       resident_name: residentNameEn,
-      resident_name_am: residentNameAm,
+      resident_name_am: residentNameAm,  // ✅ Must be here
       house_id: houseId,
       family_members: transferringFamily
     };
