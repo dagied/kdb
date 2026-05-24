@@ -4,7 +4,6 @@ import bcrypt from "bcrypt";
 import { Resend } from "resend";
 
 // ─── Resend email client ──────────────────────────────────────────────────────
-const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function POST(req) {
   const { username, password } = await req.json();
@@ -13,6 +12,8 @@ export async function POST(req) {
     req.headers.get("x-forwarded-for") ||
     req.headers.get("x-real-ip") ||
     "unknown";
+
+  const resend = new Resend(process.env.RESEND_API_KEY);
 
   // ─── 1. Check suspension ─────────────────────────────────────────────────
   try {
