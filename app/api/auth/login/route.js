@@ -2,6 +2,7 @@ import { query } from "@/_lib/db";
 import { NextResponse } from "next/server";
 import bcrypt from "bcrypt";
 import nodemailer from "nodemailer";
+import dns from "dns/promises";
 
 export async function POST(req) {
   const { username, password } = await req.json();
@@ -95,37 +96,86 @@ export async function POST(req) {
       [user.staff_id, otpCode, expiresAt]
     );
 
-    // ─── 6. Send OTP email ────────────────────────────────────────────────
-    await transporter.sendMail({
-      from: `"Bosa Addis Kebele System" <${process.env.EMAIL_USER}>`,
-      to: user.email,
-      subject: "Your Login Verification Code",
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto;">
-          <div style="background: #1f2937; padding: 24px; border-radius: 8px 8px 0 0;">
-            <h2 style="color: white; margin: 0; font-size: 20px;">Bosa Addis Kebele</h2>
-            <p style="color: #9ca3af; margin: 4px 0 0; font-size: 13px;">Administrative Management System</p>
-          </div>
-          <div style="background: #f9fafb; padding: 32px; border: 1px solid #e5e7eb; border-radius: 0 0 8px 8px;">
-            <p style="color: #374151; margin: 0 0 16px;">Hello <strong>${user.full_name}</strong>,</p>
-            <p style="color: #6b7280; font-size: 14px; margin: 0 0 24px;">
-              Use the code below to complete your sign-in. It expires in <strong>10 minutes</strong>.
-            </p>
-            <div style="background: white; border: 2px dashed #3b82f6; border-radius: 8px; padding: 20px; text-align: center; margin-bottom: 24px;">
-              <span style="font-size: 36px; font-weight: bold; letter-spacing: 10px; color: #1f2937;">${otpCode}</span>
-            </div>
-            <p style="color: #9ca3af; font-size: 12px; margin: 0;">
-              If you did not attempt to log in, please contact the system administrator immediately.
-            </p>
-          </div>
+    // ─── 6. Send OTP email (with IPv4 fallback for environments without IPv6) ─
+    const mailHtml = `
+      <div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto;">
+        <div style="background: #1f2937; padding: 24px; border-radius: 8px 8px 0 0;">
+          <h2 style="color: white; margin: 0; font-size: 20px;">Bosa Addis Kebele</h2>
+          <p style="color: #9ca3af; margin: 4px 0 0; font-size: 13px;">Administrative Management System</p>
         </div>
-      `,
-    });
+        <div style="background: #f9fafb; padding: 32px; border: 1px solid #e5e7eb; border-radius: 0 0 8px 8px;">
+          <p style="color: #374151; margin: 0 0 16px;">Hello <strong>${user.full_name}</strong>,</p>
+          <p style="color: #6b7280; font-size: 14px; margin: 0 0 24px;">
+            Use the code below to complete your sign-in. It expires in <strong>10 minutes</strong>.
+          </p>
+          <div style="background: white; border: 2px dashed #3b82f6; border-radius: 8px; padding: 20px; text-align: center; margin-bottom: 24px;">
+            <span style="font-size: 36px; font-weight: bold; letter-spacing: 10px; color: #1f2937;">${otpCode}</span>
+          </div>
+          <p style="color: #9ca3af; font-size: 12px; margin: 0;">
+            If you did not attempt to log in, please contact the system administrator immediately.
+          </p>
+        </div>
+      </div>
+    `;
+
+    let emailSent = false;
+
+    try {
+      await transporter.sendMail({
+        from: `"Bosa Addis Kebele System" <${process.env.EMAIL_USER}>`,
+        to: user.email,
+        subject: "Your Login Verification Code",
+        html: mailHtml,
+      });
+      emailSent = true;
+    } catch (primaryErr) {
+      console.error("Primary email send failed:", primaryErr);
+
+      // If the environment has no IPv6 route (ENETUNREACH) or socket errors, try IPv4
+      if (
+        primaryErr &&
+        (primaryErr.code === "ENETUNREACH" || primaryErr.code === "ESOCKET" || primaryErr.code === "ETIMEDOUT")
+      ) {
+        try {
+          const smtpHost = "smtp.gmail.com";
+          const lookup = await dns.lookup(smtpHost, { family: 4 });
+          const ipv4 = lookup && lookup.address;
+
+          if (ipv4) {
+            const ipv4Transporter = nodemailer.createTransport({
+              host: ipv4,
+              port: 587,
+              secure: false,
+              auth: {
+                user: process.env.EMAIL_USER,
+                pass: process.env.EMAIL_PASS,
+              },
+              tls: {
+                // servername ensures proper SNI/hostname verification when connecting to an IP
+                servername: smtpHost,
+              },
+            });
+
+            await ipv4Transporter.sendMail({
+              from: `"Bosa Addis Kebele System" <${process.env.EMAIL_USER}>`,
+              to: user.email,
+              subject: "Your Login Verification Code",
+              html: mailHtml,
+            });
+
+            emailSent = true;
+          }
+        } catch (ipv4Err) {
+          console.error("IPv4 fallback email send failed:", ipv4Err);
+        }
+      }
+    }
 
     return NextResponse.json({
       requiresOtp: true,
       staffId: user.staff_id,
       maskedEmail: maskEmail(user.email),
+      emailSent,
     });
   } catch (error) {
     console.error("Login error:", error);
