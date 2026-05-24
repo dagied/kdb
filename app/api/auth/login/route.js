@@ -1,18 +1,10 @@
 import { query } from "@/_lib/db";
 import { NextResponse } from "next/server";
 import bcrypt from "bcrypt";
-import nodemailer from "nodemailer";
+import { Resend } from "resend";
 
-// ─── Email transporter ───────────────────────────────────────────────────────
-const transporter = nodemailer.createTransport({
-  host: "smtp.gmail.com",
-  port: 465,
-  secure: true,
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
-});
+// ─── Resend email client ──────────────────────────────────────────────────────
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function POST(req) {
   const { username, password } = await req.json();
@@ -82,24 +74,22 @@ export async function POST(req) {
 
     // ─── 5. Generate 6-digit OTP ─────────────────────────────────────────
     const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
-    // Invalidate any previous unused OTPs for this staff
     await query(
       `UPDATE otp_tokens SET used = TRUE WHERE staff_id = $1 AND used = FALSE`,
       [user.staff_id]
     );
 
-    // Store new OTP
     await query(
       `INSERT INTO otp_tokens (staff_id, otp_code, expires_at)
        VALUES ($1, $2, $3)`,
       [user.staff_id, otpCode, expiresAt]
     );
 
-    // ─── 6. Send OTP email ────────────────────────────────────────────────
-    await transporter.sendMail({
-      from: `"Bosa Addis Kebele System" <${process.env.EMAIL_USER}>`,
+    // ─── 6. Send OTP email via Resend ─────────────────────────────────────
+    await resend.emails.send({
+      from: "Bosa Addis Kebele <onboarding@resend.dev>",
       to: user.email,
       subject: "Your Login Verification Code",
       html: `
@@ -124,7 +114,7 @@ export async function POST(req) {
       `,
     });
 
-    // ─── 7. Return success — do NOT send JWT yet ──────────────────────────
+    // ─── 7. Return success ────────────────────────────────────────────────
     return NextResponse.json({
       requiresOtp: true,
       staffId: user.staff_id,
@@ -136,7 +126,7 @@ export async function POST(req) {
   }
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 function maskEmail(email) {
   const [local, domain] = email.split("@");
   const visible = local.slice(0, 2);
@@ -153,7 +143,6 @@ async function incrementAttempts(ip, username) {
     );
 
     let attempts = existing.length > 0 ? existing[0].attempts + 1 : 1;
-
     const suspendedUntil =
       attempts >= 3 ? new Date(Date.now() + 30 * 60 * 1000) : null;
 
