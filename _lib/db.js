@@ -14,7 +14,8 @@ function getPool() {
       },
       max: 20,
       idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 2000,
+      // Increase connection timeout to tolerate transient network latency
+      connectionTimeoutMillis: 10000,
     });
 
     pool.on('connect', () => {
@@ -32,7 +33,13 @@ function getPool() {
 // 🔥 QUERY HELPER (returns rows directly)
 export async function query(text, params = []) {
   const start = Date.now();
-  const client = await getPool().connect();
+  let client;
+  try {
+    client = await getPool().connect();
+  } catch (connErr) {
+    console.error('❌ PostgreSQL connection error:', connErr);
+    throw connErr;
+  }
 
   try {
     const res = await client.query(text, params);
@@ -46,10 +53,10 @@ export async function query(text, params = []) {
 
     return res.rows; // ✅ important (your services expect rows)
   } catch (error) {
-    console.error('❌ Query error:', error.message);
+    console.error('❌ Query error:', error.message || error);
     throw error;
   } finally {
-    client.release();
+    if (client) client.release();
   }
 }
 
