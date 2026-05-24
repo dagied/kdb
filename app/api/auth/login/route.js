@@ -1,9 +1,7 @@
 import { query } from "@/_lib/db";
 import { NextResponse } from "next/server";
 import bcrypt from "bcrypt";
-import { Resend } from "resend";
-
-// ─── Resend email client ──────────────────────────────────────────────────────
+import nodemailer from "nodemailer";
 
 export async function POST(req) {
   const { username, password } = await req.json();
@@ -13,7 +11,16 @@ export async function POST(req) {
     req.headers.get("x-real-ip") ||
     "unknown";
 
-  const resend = new Resend(process.env.RESEND_API_KEY);
+  // ─── Email transporter inside handler (runtime only) ─────────────────────
+  const transporter = nodemailer.createTransport({
+    host: "smtp.gmail.com",
+    port: 587,
+    secure: false,
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS,
+    },
+  });
 
   // ─── 1. Check suspension ─────────────────────────────────────────────────
   try {
@@ -88,9 +95,9 @@ export async function POST(req) {
       [user.staff_id, otpCode, expiresAt]
     );
 
-    // ─── 6. Send OTP email via Resend ─────────────────────────────────────
-    await resend.emails.send({
-      from: "Bosa Addis Kebele <onboarding@resend.dev>",
+    // ─── 6. Send OTP email ────────────────────────────────────────────────
+    await transporter.sendMail({
+      from: `"Bosa Addis Kebele System" <${process.env.EMAIL_USER}>`,
       to: user.email,
       subject: "Your Login Verification Code",
       html: `
@@ -115,7 +122,6 @@ export async function POST(req) {
       `,
     });
 
-    // ─── 7. Return success ────────────────────────────────────────────────
     return NextResponse.json({
       requiresOtp: true,
       staffId: user.staff_id,
@@ -127,7 +133,6 @@ export async function POST(req) {
   }
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 function maskEmail(email) {
   const [local, domain] = email.split("@");
   const visible = local.slice(0, 2);
