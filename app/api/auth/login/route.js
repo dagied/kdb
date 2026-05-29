@@ -1,16 +1,25 @@
 import { query } from "@/_lib/db";
 import { NextResponse } from "next/server";
 import bcrypt from "bcrypt";
-import { Resend } from "resend";
+import nodemailer from "nodemailer";
 
 export async function POST(req) {
   const { username, password } = await req.json();
-  const resend = new Resend(process.env.RESEND_API_KEY);
 
   const ip =
     req.headers.get("x-forwarded-for") ||
     req.headers.get("x-real-ip") ||
     "unknown";
+
+  const transporter = nodemailer.createTransport({
+    host: "smtp.gmail.com",
+    port: 587,
+    secure: false,
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS,
+    },
+  });
 
   try {
     const suspendedResult = await query(
@@ -77,8 +86,8 @@ export async function POST(req) {
       [user.staff_id, otpCode, expiresAt]
     );
 
-    await resend.emails.send({
-      from: "Bosa Addis Kebele <onboarding@resend.dev>",
+    await transporter.sendMail({
+      from: `"Bosa Addis Kebele System" <${process.env.EMAIL_USER}>`,
       to: user.email,
       subject: "Your Login Verification Code",
       html: `
