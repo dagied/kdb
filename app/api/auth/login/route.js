@@ -11,10 +11,13 @@ export async function POST(req) {
     req.headers.get("x-real-ip") ||
     "unknown";
 
+  // Debug: Check if environment variables exist (remove after testing)
+  console.log("EMAIL_USER exists:", !!process.env.EMAIL_USER);
+  console.log("EMAIL_PASS exists:", !!process.env.EMAIL_PASS);
+
+  // Updated transporter using simpler Gmail service configuration
   const transporter = nodemailer.createTransport({
-    host: "smtp.gmail.com",
-    port: 587,
-    secure: false,
+    service: "gmail",
     auth: {
       user: process.env.EMAIL_USER,
       pass: process.env.EMAIL_PASS,
@@ -86,7 +89,8 @@ export async function POST(req) {
       [user.staff_id, otpCode, expiresAt]
     );
 
-    await transporter.sendMail({
+    // Send email with better error logging
+    const info = await transporter.sendMail({
       from: `"Bosa Addis Kebele System" <${process.env.EMAIL_USER}>`,
       to: user.email,
       subject: "Your Login Verification Code",
@@ -112,6 +116,9 @@ export async function POST(req) {
       `,
     });
 
+    console.log("EMAIL SENT successfully to:", user.email);
+    console.log("Message ID:", info.messageId);
+
     return NextResponse.json({
       requiresOtp: true,
       staffId: user.staff_id,
@@ -119,6 +126,16 @@ export async function POST(req) {
     });
   } catch (error) {
     console.error("Login error:", error);
+    
+    // More detailed error for email failures
+    if (error.code === 'EAUTH') {
+      console.error("Gmail authentication failed. Check your EMAIL_PASS (use App Password)");
+      return NextResponse.json(
+        { error: "Email service configuration error. Please contact administrator." },
+        { status: 500 }
+      );
+    }
+    
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
